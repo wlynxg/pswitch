@@ -14,6 +14,34 @@ Binary output:
 
 Download the matching archive from [GitHub Releases](https://github.com/wlynxg/pswitch/releases/latest), extract it, and run the binary from the extracted directory.
 
+## Docker
+
+Start with Docker Compose:
+
+```bash
+docker compose up -d --build
+```
+
+Or:
+
+```bash
+docker build -t pswitch .
+docker run -d --name pswitch -p 8080:8080 -v "$(pwd)/data:/data" pswitch
+```
+
+Or use the published image:
+
+```bash
+docker pull ghcr.io/wlynxg/pswitch:latest
+docker run -d --name pswitch -p 8080:8080 -v "$(pwd)/data:/data" ghcr.io/wlynxg/pswitch:latest
+```
+
+Notes:
+
+- The container working directory is `/data`.
+- `settings.json` and `metrics.json` are persisted under `/data`.
+- `CMD ["--config", "/data/config.toml"]` means a mounted config file is used when present, but startup still falls back to the built-in default config if the file is missing.
+
 ## Initialize config
 
 ```bash

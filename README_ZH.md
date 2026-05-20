@@ -78,6 +78,44 @@ http://<服务器IP>:8080/dashboard/
 
 你可以直接在 `Config` 页面里添加 Provider 并保存运行配置。程序会在当前运行目录写入 `settings.json` 和 `metrics.json`。
 
+### 使用 Docker 部署
+
+使用 Docker Compose：
+
+```bash
+docker compose up -d --build
+```
+
+或者直接构建并运行镜像：
+
+```bash
+docker build -t pswitch .
+docker run -d \
+  --name pswitch \
+  -p 8080:8080 \
+  -v "$(pwd)/data:/data" \
+  -e PSWITCH_ADMIN_TOKEN=your-token \
+  pswitch
+```
+
+或者直接使用已经发布到 GHCR 的镜像：
+
+```bash
+docker pull ghcr.io/wlynxg/pswitch:latest
+docker run -d \
+  --name pswitch \
+  -p 8080:8080 \
+  -v "$(pwd)/data:/data" \
+  ghcr.io/wlynxg/pswitch:latest
+```
+
+Docker 说明：
+
+- 容器默认监听 `0.0.0.0:8080`
+- 运行态文件保存在 `/data`
+- 建议挂载 `./data:/data` 来持久化 `settings.json` 和 `metrics.json`
+- 如果 `/data/config.toml` 不存在，程序仍会使用内置默认配置启动
+
 ### 配置客户端
 
 把客户端指向本地代理：
@@ -123,3 +161,5 @@ make build
 git tag v0.1.0
 git push origin v0.1.0
 ```
+
+同时也会自动发布多架构 Docker 镜像到 `ghcr.io/wlynxg/pswitch`。

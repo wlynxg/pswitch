@@ -98,6 +98,44 @@ http://<server-ip>:8080/dashboard/
 
 Use the `Config` page to add providers and save runtime settings. `settings.json` and `metrics.json` are written to the directory where you run the binary.
 
+### Run with Docker
+
+Build and start with Docker Compose:
+
+```bash
+docker compose up -d --build
+```
+
+Or build and run the image directly:
+
+```bash
+docker build -t pswitch .
+docker run -d \
+  --name pswitch \
+  -p 8080:8080 \
+  -v "$(pwd)/data:/data" \
+  -e PSWITCH_ADMIN_TOKEN=your-token \
+  pswitch
+```
+
+Or pull the published image from GHCR:
+
+```bash
+docker pull ghcr.io/wlynxg/pswitch:latest
+docker run -d \
+  --name pswitch \
+  -p 8080:8080 \
+  -v "$(pwd)/data:/data" \
+  ghcr.io/wlynxg/pswitch:latest
+```
+
+Docker notes:
+
+- the container listens on `0.0.0.0:8080`
+- runtime files are stored in `/data`
+- mount `./data:/data` to persist `settings.json` and `metrics.json`
+- if `/data/config.toml` does not exist, `pswitch` still starts with the built-in default config
+
 ### Point your client at pswitch
 
 Use the local proxy endpoint:
@@ -256,4 +294,4 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The release workflow builds archives for Linux, macOS, and Windows, then uploads them with a `checksums.txt` file.
+The release workflow builds archives for Linux, macOS, and Windows, uploads them with a `checksums.txt` file, and publishes a multi-arch Docker image to `ghcr.io/wlynxg/pswitch`.

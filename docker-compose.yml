@@ -1,0 +1,13 @@
+services:
+  pswitch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pswitch
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PSWITCH_ADMIN_TOKEN: ${PSWITCH_ADMIN_TOKEN:-}
+    volumes:
+      - ./data:/data

@@ -42,3 +42,25 @@ func TestReleaseWorkflowBuildsExpectedArchives(t *testing.T) {
 		}
 	}
 }
+
+func TestReleaseWorkflowPublishesDockerImage(t *testing.T) {
+	path := filepath.Join("..", "..", ".github", "workflows", "release.yml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := string(content)
+	for _, snippet := range []string{
+		"ghcr.io/wlynxg/pswitch",
+		"docker/setup-qemu-action",
+		"docker/setup-buildx-action",
+		"docker/login-action",
+		"docker/build-push-action",
+		"linux/amd64,linux/arm64",
+	} {
+		if !strings.Contains(text, snippet) {
+			t.Fatalf("release workflow missing %q", snippet)
+		}
+	}
+}

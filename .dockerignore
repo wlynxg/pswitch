@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+.codex
+.superpowers
+bin
+psw
+docs/superpowers
+docs/assets
+coverage.txt
+*.test
+*.out
+ docker-compose*.yml
