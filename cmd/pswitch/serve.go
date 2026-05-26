@@ -22,7 +22,6 @@ import (
 )
 
 type serveArgs struct {
-	ConfigPath          string
 	Listen              string
 	Mode                string
 	FailureThreshold    *int
@@ -113,7 +112,6 @@ func parseServeArgs(args []string) (serveArgs, error) {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
-	configPath := fs.String("config", defaultConfigPath(mustExecutablePath()), "path to TOML config")
 	overrideListen := fs.String("listen", "", "optional listen address override")
 	overrideMode := fs.String("mode", "", "optional mode override: sequential, round_robin, or least_failures")
 	var overrideFailureThreshold optionalInt
@@ -130,11 +128,13 @@ func parseServeArgs(args []string) (serveArgs, error) {
 	if err := fs.Parse(args); err != nil {
 		return serveArgs{}, err
 	}
+	if fs.NArg() != 0 {
+		return serveArgs{}, fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " "))
+	}
 
 	out := serveArgs{
-		ConfigPath: *configPath,
-		Listen:     *overrideListen,
-		Mode:       *overrideMode,
+		Listen: *overrideListen,
+		Mode:   *overrideMode,
 	}
 	if overrideFailureThreshold.set {
 		out.FailureThreshold = &overrideFailureThreshold.value
@@ -167,7 +167,7 @@ func runServe(args []string) error {
 	settingsPath := defaultSettingsPath(stateDir)
 	metricsPath := defaultMetricsPath(stateDir)
 
-	cfg, err := loadStartupConfig(parsed.ConfigPath, settingsPath)
+	cfg, err := loadStartupConfig(settingsPath)
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func runServe(args []string) error {
 
 	currentCfg := manager.Config()
 	logx.Infof("proxy started listen=%s mode=%s providers=%d routes=%d", listener.Addr().String(), currentCfg.Mode, len(currentCfg.Providers), len(currentCfg.Routes))
-	logx.Infof("runtime files config=%s settings=%s metrics=%s", parsed.ConfigPath, settingsPath, metricsPath)
+	logx.Infof("runtime files settings=%s metrics=%s", settingsPath, metricsPath)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -250,7 +250,7 @@ func resolveAdminToken(listen string) (string, error) {
 	return strings.TrimSpace(os.Getenv("PSWITCH_ADMIN_TOKEN")), nil
 }
 
-func loadStartupConfig(configPath, settingsPath string) (config.Config, error) {
+func loadStartupConfig(settingsPath string) (config.Config, error) {
 	cfg, err := config.LoadJSON(settingsPath)
 	if err == nil {
 		return cfg, nil
@@ -260,36 +260,14 @@ func loadStartupConfig(configPath, settingsPath string) (config.Config, error) {
 		if !errors.As(err, &pathErr) || !errors.Is(pathErr.Err, os.ErrNotExist) {
 			return config.Config{}, err
 		}
+		return config.Config{}, err
 	}
 
-	return loadUserConfigOrDefault(configPath)
-}
-
-func loadUserConfigOrDefault(path string) (config.Config, error) {
-	cfg, err := config.Load(path)
-	if err == nil {
-		return cfg, nil
-	}
-
-	if errors.Is(err, os.ErrNotExist) {
-		return config.Default(), nil
-	}
-
-	var pathErr *os.PathError
-	if errors.As(err, &pathErr) && errors.Is(pathErr.Err, os.ErrNotExist) {
-		return config.Default(), nil
-	}
-
-	return config.Config{}, err
+	return config.Default(), nil
 }
 
 func defaultStateDir() (string, error) {
 	return os.Getwd()
-}
-
-func defaultConfigPath(executablePath string) string {
-	dir := filepath.Dir(executablePath)
-	return filepath.Join(dir, "config.toml")
 }
 
 func defaultSettingsPath(stateDir string) string {
@@ -319,12 +297,4 @@ func applyServeOverrides(cfg *config.Config, args serveArgs) {
 	if args.HealthCheckTimeout != nil {
 		cfg.HealthCheckTimeout = *args.HealthCheckTimeout
 	}
-}
-
-func mustExecutablePath() string {
-	path, err := os.Executable()
-	if err != nil || strings.TrimSpace(path) == "" {
-		return filepath.Join(".", "pswitch")
-	}
-	return path
 }

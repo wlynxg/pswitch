@@ -37,6 +37,7 @@ type Route struct {
 	Kind          string
 	Model         string
 	UpstreamModel string
+	Providers     []string
 	Enabled       bool
 }
 
@@ -59,11 +60,12 @@ type rawConfig struct {
 }
 
 type rawRoute struct {
-	Prefix        string `toml:"prefix" json:"prefix"`
-	Kind          string `toml:"type" json:"type"`
-	Model         string `toml:"model" json:"model"`
-	UpstreamModel string `toml:"upstream_model" json:"upstream_model"`
-	Enabled       *bool  `toml:"enabled" json:"enabled"`
+	Prefix        string   `toml:"prefix" json:"prefix"`
+	Kind          string   `toml:"type" json:"type"`
+	Model         string   `toml:"model" json:"model"`
+	UpstreamModel string   `toml:"upstream_model" json:"upstream_model"`
+	Providers     []string `toml:"providers" json:"providers"`
+	Enabled       *bool    `toml:"enabled" json:"enabled"`
 }
 
 type rawProvider struct {
@@ -224,7 +226,27 @@ func (c Config) Validate() error {
 		problems = append(problems, errors.New("health_check_timeout must be greater than zero"))
 	}
 
-	seen := make(map[string]struct{})
+	providerNames := make(map[string]struct{})
+	for _, provider := range c.Providers {
+		if !provider.Enabled {
+			continue
+		}
+		if provider.Name == "" {
+			problems = append(problems, errors.New("provider name is required"))
+		}
+		if provider.BaseURL == "" {
+			problems = append(problems, fmt.Errorf("provider %q base_url is required", provider.Name))
+		}
+		if provider.APIKey == "" {
+			problems = append(problems, fmt.Errorf("provider %q api_key is required", provider.Name))
+		}
+		key := strings.ToLower(provider.Name)
+		if _, ok := providerNames[key]; ok {
+			problems = append(problems, fmt.Errorf("duplicate provider name %q", provider.Name))
+		}
+		providerNames[key] = struct{}{}
+	}
+
 	seenPrefixes := make(map[string]struct{})
 	enabledRoutes := 0
 	rootRouteEnabled := false
@@ -244,6 +266,11 @@ func (c Config) Validate() error {
 		if route.Kind == "anthropic" && route.UpstreamModel == "" {
 			problems = append(problems, fmt.Errorf("anthropic route %q upstream_model is required", route.Prefix))
 		}
+		for _, pn := range route.Providers {
+			if _, ok := providerNames[strings.ToLower(pn)]; !ok {
+				problems = append(problems, fmt.Errorf("route %q references unknown provider %q", route.Prefix, pn))
+			}
+		}
 		key := strings.ToLower(route.Prefix)
 		if _, ok := seenPrefixes[key]; ok {
 			problems = append(problems, fmt.Errorf("duplicate route prefix %q", route.Prefix))
@@ -258,30 +285,6 @@ func (c Config) Validate() error {
 	}
 	if rootRouteEnabled && enabledRoutes > 1 {
 		problems = append(problems, errors.New("route prefix \"/\" cannot be combined with other routes"))
-	}
-
-	enabledCount := 0
-	for _, provider := range c.Providers {
-		if !provider.Enabled {
-			continue
-		}
-		enabledCount++
-
-		if provider.Name == "" {
-			problems = append(problems, errors.New("provider name is required"))
-		}
-		if provider.BaseURL == "" {
-			problems = append(problems, fmt.Errorf("provider %q base_url is required", provider.Name))
-		}
-		if provider.APIKey == "" {
-			problems = append(problems, fmt.Errorf("provider %q api_key is required", provider.Name))
-		}
-
-		key := strings.ToLower(provider.Name)
-		if _, ok := seen[key]; ok {
-			problems = append(problems, fmt.Errorf("duplicate provider name %q", provider.Name))
-		}
-		seen[key] = struct{}{}
 	}
 
 	return errors.Join(problems...)
@@ -354,6 +357,7 @@ func rawConfigFromConfig(cfg Config) rawConfig {
 			Kind:          normalizeRouteKind(route.Kind),
 			Model:         strings.TrimSpace(route.Model),
 			UpstreamModel: strings.TrimSpace(route.UpstreamModel),
+			Providers:     append([]string(nil), route.Providers...),
 			Enabled:       &enabled,
 		})
 	}
@@ -420,6 +424,7 @@ func configFromRaw(raw rawConfig) (Config, error) {
 			Kind:          normalizeRouteKind(item.Kind),
 			Model:         strings.TrimSpace(item.Model),
 			UpstreamModel: strings.TrimSpace(item.UpstreamModel),
+			Providers:     append([]string(nil), item.Providers...),
 			Enabled:       enabled,
 		})
 	}

@@ -18,11 +18,14 @@ func TestDockerfileUsesPersistentDataDirectory(t *testing.T) {
 	for _, snippet := range []string{
 		"WORKDIR /data",
 		"EXPOSE 8080",
-		`CMD ["--config", "/data/config.toml"]`,
+		`ENTRYPOINT ["pswitch"]`,
 	} {
 		if !strings.Contains(text, snippet) {
 			t.Fatalf("Dockerfile missing %q", snippet)
 		}
+	}
+	if strings.Contains(text, "--config") {
+		t.Fatal("Dockerfile should not pass --config")
 	}
 }
 

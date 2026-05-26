@@ -193,6 +193,61 @@ api_key = "k1"
 	}
 }
 
+func TestRouteProvidersMustReferenceExistingProviders(t *testing.T) {
+	cfg := Config{
+		Listen:              "127.0.0.1:8080",
+		Mode:                "round_robin",
+		FailureThreshold:    1,
+		Cooldown:            time.Second,
+		HealthCheckInterval: time.Second,
+		HealthCheckTimeout:  time.Second,
+		Routes: []Route{
+			{Prefix: "/codex", Kind: "openai", Providers: []string{"missing"}, Enabled: true},
+		},
+		Providers: []Provider{
+			{Name: "real", BaseURL: "http://127.0.0.1:10001", APIKey: "k1", Enabled: true},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for unknown provider reference")
+	}
+}
+
+func TestRouteProvidersRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	err := os.WriteFile(path, []byte(`
+listen = "127.0.0.1:8080"
+
+[[routes]]
+prefix = "/codex"
+type = "openai"
+providers = ["p1", "p2"]
+
+[[providers]]
+name = "p1"
+base_url = "http://127.0.0.1:10001"
+api_key = "k1"
+
+[[providers]]
+name = "p2"
+base_url = "http://127.0.0.1:10002"
+api_key = "k2"
+`), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Routes[0].Providers) != 2 || cfg.Routes[0].Providers[0] != "p1" || cfg.Routes[0].Providers[1] != "p2" {
+		t.Fatalf("route providers = %v, want [p1 p2]", cfg.Routes[0].Providers)
+	}
+}
+
 func TestWriteRoundTripsConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")

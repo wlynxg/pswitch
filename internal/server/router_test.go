@@ -293,3 +293,65 @@ func TestRouterRecordsUsageIntoDashboardStats(t *testing.T) {
 		t.Fatalf("stats overview = %#v", got.Overview)
 	}
 }
+
+func TestRouteWithProvidersOnlyUsesNamedProviders(t *testing.T) {
+	firstHit := make(chan struct{}, 1)
+	secondHit := make(chan struct{}, 1)
+
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		firstHit <- struct{}{}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"ok"}`)
+	}))
+	defer first.Close()
+
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		secondHit <- struct{}{}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"ok"}`)
+	}))
+	defer second.Close()
+
+	cfg := config.Config{
+		Listen:              "127.0.0.1:0",
+		Mode:                "sequential",
+		FailureThreshold:    1,
+		Cooldown:            time.Second,
+		HealthCheckInterval: time.Second,
+		HealthCheckTimeout:  time.Second,
+		Routes: []config.Route{
+			{Prefix: "/codex", Kind: "openai", Providers: []string{"first"}, Enabled: true},
+		},
+		Providers: []config.Provider{
+			{Name: "first", BaseURL: first.URL, APIKey: "k1", Enabled: true},
+			{Name: "second", BaseURL: second.URL, APIKey: "k2", Enabled: true},
+		},
+	}
+
+	dir := t.TempDir()
+	manager, err := pruntime.New(dir+"/settings.json", dir+"/metrics.json", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(NewRouter(manager, ""))
+	defer srv.Close()
+
+	reqBody, _ := json.Marshal(map[string]any{"model": "gpt-5.4", "input": "hello"})
+	resp, err := http.Post(srv.URL+"/codex/v1/responses", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+
+	select {
+	case <-firstHit:
+	default:
+		t.Fatal("named provider first was not called")
+	}
+	select {
+	case <-secondHit:
+		t.Fatal("unnamed provider second should not have been called")
+	default:
+	}
+}

@@ -16,16 +16,18 @@ import (
 )
 
 type Options struct {
-	Client  *http.Client
-	Mode    pool.Mode
-	Metrics *metrics.Store
+	Client        *http.Client
+	Mode          pool.Mode
+	Metrics       *metrics.Store
+	ProviderNames []string
 }
 
 type Handler struct {
-	pool    *pool.Pool
-	client  *http.Client
-	mode    pool.Mode
-	metrics *metrics.Store
+	pool          *pool.Pool
+	client        *http.Client
+	mode          pool.Mode
+	metrics       *metrics.Store
+	providerNames []string
 }
 
 func NewHandler(providerPool *pool.Pool, opts Options) *Handler {
@@ -38,10 +40,11 @@ func NewHandler(providerPool *pool.Pool, opts Options) *Handler {
 		mode = providerPool.Mode()
 	}
 	return &Handler{
-		pool:    providerPool,
-		client:  client,
-		mode:    mode,
-		metrics: opts.Metrics,
+		pool:          providerPool,
+		client:        client,
+		mode:          mode,
+		metrics:       opts.Metrics,
+		providerNames: opts.ProviderNames,
 	}
 }
 
@@ -54,7 +57,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	model := upstream.ExtractRequestedModel(body)
-	candidates := h.pool.Candidates(h.mode, now)
+	candidates := h.pool.CandidatesForNames(h.providerNames, h.mode, now)
 	if len(candidates) == 0 {
 		http.Error(w, "no available providers", http.StatusServiceUnavailable)
 		return

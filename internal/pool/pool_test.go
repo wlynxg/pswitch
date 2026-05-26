@@ -100,6 +100,57 @@ func TestCandidatesLeastFailuresPrefersProviderWithFewestFailures(t *testing.T) 
 	}
 }
 
+func TestCandidatesForNamesFiltersToNamedProviders(t *testing.T) {
+	p, err := New(config.Config{
+		Mode:             "sequential",
+		FailureThreshold: 1,
+		Cooldown:         time.Second,
+		Providers: []config.Provider{
+			{Name: "a", BaseURL: "http://a", APIKey: "ka"},
+			{Name: "b", BaseURL: "http://b", APIKey: "kb"},
+			{Name: "c", BaseURL: "http://c", APIKey: "kc"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Unix(100, 0)
+	got := names(p.CandidatesForNames([]string{"a", "c"}, ModeSequential, now))
+	want := []string{"a", "c"}
+	if len(got) != len(want) {
+		t.Fatalf("candidates = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("candidates = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestCandidatesForNamesEmptyReturnsAll(t *testing.T) {
+	p, err := New(config.Config{
+		Mode:             "sequential",
+		FailureThreshold: 1,
+		Cooldown:         time.Second,
+		Providers: []config.Provider{
+			{Name: "a", BaseURL: "http://a", APIKey: "ka"},
+			{Name: "b", BaseURL: "http://b", APIKey: "kb"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Unix(100, 0)
+	if got := len(p.CandidatesForNames(nil, ModeSequential, now)); got != 2 {
+		t.Fatalf("candidates = %d, want 2", got)
+	}
+	if got := len(p.CandidatesForNames([]string{}, ModeSequential, now)); got != 2 {
+		t.Fatalf("candidates = %d, want 2", got)
+	}
+}
+
 func TestProbeDueRestoresProvider(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/models" {

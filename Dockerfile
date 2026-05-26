@@ -18,4 +18,3 @@ COPY --from=builder /out/pswitch /usr/local/bin/pswitch
 EXPOSE 8080
 
 ENTRYPOINT ["pswitch"]
-CMD ["--config", "/data/config.toml"]

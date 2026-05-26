@@ -43,8 +43,9 @@ func (d *dispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	openAIHandler := openai.NewHandler(providerPool, openai.Options{
-		Mode:    pool.Mode(cfg.Mode),
-		Metrics: d.manager.Metrics(),
+		Mode:          pool.Mode(cfg.Mode),
+		Metrics:       d.manager.Metrics(),
+		ProviderNames: route.Providers,
 	})
 
 	var handler http.Handler

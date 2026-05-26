@@ -94,12 +94,24 @@ func (p *Pool) Mode() Mode {
 }
 
 func (p *Pool) Candidates(mode Mode, now time.Time) []ProviderSnapshot {
+	return p.CandidatesForNames(nil, mode, now)
+}
+
+func (p *Pool) CandidatesForNames(names []string, mode Mode, now time.Time) []ProviderSnapshot {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
+	filter := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		filter[name] = struct{}{}
+	}
 
 	order := p.orderedProvidersLocked(parseMode(string(mode)))
 	healthy := make([]ProviderSnapshot, 0, len(order))
 	for _, state := range order {
+		if _, ok := filter[state.snapshot.Name]; len(filter) > 0 && !ok {
+			continue
+		}
 		if state.healthy {
 			healthy = append(healthy, state.snapshot)
 		}
@@ -110,6 +122,9 @@ func (p *Pool) Candidates(mode Mode, now time.Time) []ProviderSnapshot {
 
 	due := make([]ProviderSnapshot, 0, len(order))
 	for _, state := range order {
+		if _, ok := filter[state.snapshot.Name]; len(filter) > 0 && !ok {
+			continue
+		}
 		if !state.healthy && !state.nextProbeAt.After(now) {
 			due = append(due, state.snapshot)
 		}

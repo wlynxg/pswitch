@@ -24,7 +24,7 @@ It is designed for setups where you want:
 - automatic failover and recovery
 - a clean dashboard for traffic, token usage, provider health, and runtime config
 
-By default, `pswitch` starts with a single OpenAI-compatible route on `/codex`. You can add more routes and providers later from the dashboard or config files.
+By default, `pswitch` starts with a single OpenAI-compatible route on `/codex`. You can add more routes and providers later from the dashboard.
 
 ## Screenshot
 
@@ -134,7 +134,7 @@ Docker notes:
 - the container listens on `0.0.0.0:8080`
 - runtime files are stored in `/data`
 - mount `./data:/data` to persist `settings.json` and `metrics.json`
-- if `/data/config.toml` does not exist, `pswitch` still starts with the built-in default config
+- if `/data/settings.json` does not exist yet, `pswitch` starts with the built-in default config
 
 ### Point your client at pswitch
 
@@ -174,12 +174,12 @@ Binary output:
 Or:
 
 ```bash
-./bin/pswitch --config ./config.toml
+./bin/pswitch --listen 127.0.0.1:8080
 ```
 
 ## Default Behavior
 
-If no config file exists, `pswitch` starts with the built-in default config.
+If no saved runtime config exists, `pswitch` starts with the built-in default config.
 
 Default startup behavior:
 
@@ -190,7 +190,6 @@ Default startup behavior:
 
 Default file behavior:
 
-- user config file is startup input only and is never modified by the program
 - dashboard-saved runtime config goes to `./settings.json`
 - dashboard metrics go to `./metrics.json`
 - if `settings.json` exists, it takes precedence on startup
@@ -207,33 +206,63 @@ export ANTHROPIC_API_KEY=dummy
 ## Config Example
 
 ```toml
+# Listen address for the local proxy and dashboard.
 listen = "0.0.0.0:8080"
+
+# Provider selection strategy:
+# - round_robin: rotate across healthy providers
+# - sequential: always try providers in list order
+# - least_failures: prefer healthy providers with fewer recent failures
 mode = "least_failures"
+
+# Circuit-break a provider after this many consecutive upstream failures.
 failure_threshold = 1
+
+# Wait this long before probing a failed provider again.
 cooldown = "20s"
+
+# How often the background health loop checks whether a provider should be probed.
 health_check_interval = "15s"
+
+# Timeout for each health probe request.
 health_check_timeout = "3s"
 
 [[routes]]
+# Public route prefix exposed by pswitch.
 prefix = "/codex"
+
+# Protocol adapter used by this route.
 type = "openai"
 
 [[routes]]
+# Optional route for Anthropic-compatible clients.
 prefix = "/claude"
 type = "anthropic"
+
+# Model name advertised back to Anthropic-style clients.
 model = "claude-sonnet-4-20250514"
+
+# Actual upstream model sent to your provider.
 upstream_model = "gpt-5.4"
 
 [[providers]]
+# Unique provider name used in the dashboard and route filters.
 name = "provider-a"
+
+# Base URL of the upstream API. Most providers expect the /v1 suffix here.
 base_url = "https://provider-a.example/v1"
+
+# Secret key forwarded to the upstream provider.
 api_key = "sk-your-provider-a-key"
 
 [[providers]]
+# Add more providers to enable failover and traffic spreading.
 name = "provider-b"
 base_url = "https://provider-b.example/v1"
 api_key = "sk-your-provider-b-key"
 ```
+
+Use this example as a field reference when editing runtime config in the dashboard. `pswitch` does not load this TOML file on startup.
 
 ## Admin Dashboard
 
@@ -260,13 +289,7 @@ If `PSWITCH_ADMIN_TOKEN` is set, both the dashboard UI and admin API require it.
 Run directly:
 
 ```bash
-pswitch [--config PATH] [--listen ADDR] [--mode sequential|round_robin|least_failures] [--failure-threshold N] [--cooldown DURATION] [--health-check-interval DURATION] [--health-check-timeout DURATION] [--log-color[=true|false]]
-```
-
-Generate a starter config:
-
-```bash
-./bin/pswitch init
+pswitch [--listen ADDR] [--mode sequential|round_robin|least_failures] [--failure-threshold N] [--cooldown DURATION] [--health-check-interval DURATION] [--health-check-timeout DURATION] [--log-color[=true|false]]
 ```
 
 ## Documentation
@@ -282,7 +305,6 @@ Generate a starter config:
 - `make build` builds `./bin/pswitch`
 - `make run` starts the service
 - `make test` runs the test suite
-- `make init` generates an example config
 - `make clean` removes build artifacts
 
 ## Release Automation

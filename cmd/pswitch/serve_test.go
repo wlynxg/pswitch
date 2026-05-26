@@ -66,10 +66,20 @@ func TestParseServeArgsSupportsGeneralOverrides(t *testing.T) {
 	}
 }
 
-func TestLoadStartupConfigFallsBackToDefaultWhenMissing(t *testing.T) {
-	path := t.TempDir() + "/missing.toml"
+func TestParseServeArgsRejectsConfigFlag(t *testing.T) {
+	if _, err := parseServeArgs([]string{"--config", "./config.toml"}); err == nil {
+		t.Fatal("expected --config to be rejected")
+	}
+}
 
-	cfg, err := loadStartupConfig(path, filepath.Join(t.TempDir(), "settings.json"))
+func TestParseServeArgsRejectsUnexpectedPositionalArgs(t *testing.T) {
+	if _, err := parseServeArgs([]string{"init"}); err == nil {
+		t.Fatal("expected unexpected positional arg to be rejected")
+	}
+}
+
+func TestLoadStartupConfigFallsBackToDefaultWhenMissing(t *testing.T) {
+	cfg, err := loadStartupConfig(filepath.Join(t.TempDir(), "settings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,19 +100,10 @@ func TestLoadStartupConfigFallsBackToDefaultWhenMissing(t *testing.T) {
 
 func TestLoadStartupConfigPrefersSettingsJSONWhenPresent(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
 	settingsPath := filepath.Join(dir, "settings.json")
 
-	base := config.Default()
-	base.Listen = "127.0.0.1:8080"
-	base.Providers = []config.Provider{
-		{Name: "from-config", BaseURL: "http://127.0.0.1:10001", APIKey: "k1", Enabled: true},
-	}
-	if err := config.Write(configPath, base); err != nil {
-		t.Fatal(err)
-	}
-
-	override := base
+	override := config.Default()
+	override.Listen = "127.0.0.1:8080"
 	override.Mode = "sequential"
 	override.Providers = []config.Provider{
 		{Name: "from-settings", BaseURL: "http://127.0.0.1:10002", APIKey: "k2", Enabled: true},
@@ -111,7 +112,7 @@ func TestLoadStartupConfigPrefersSettingsJSONWhenPresent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := loadStartupConfig(configPath, settingsPath)
+	got, err := loadStartupConfig(settingsPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,16 +165,6 @@ func TestResolveAdminTokenAllowsNonLoopbackWithoutToken(t *testing.T) {
 	}
 	if got != "" {
 		t.Fatalf("token = %q, want empty", got)
-	}
-}
-
-func TestDefaultConfigPathUsesBinaryDirectory(t *testing.T) {
-	binaryPath := filepath.Join("/tmp", "pswitch-bin", "pswitch")
-
-	got := defaultConfigPath(binaryPath)
-	want := filepath.Join("/tmp", "pswitch-bin", "config.toml")
-	if got != want {
-		t.Fatalf("defaultConfigPath(%q) = %q, want %q", binaryPath, got, want)
 	}
 }
 

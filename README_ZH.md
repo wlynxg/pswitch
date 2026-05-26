@@ -114,7 +114,7 @@ Docker 说明：
 - 容器默认监听 `0.0.0.0:8080`
 - 运行态文件保存在 `/data`
 - 建议挂载 `./data:/data` 来持久化 `settings.json` 和 `metrics.json`
-- 如果 `/data/config.toml` 不存在，程序仍会使用内置默认配置启动
+- 如果 `/data/settings.json` 还不存在，程序会使用内置默认配置启动
 
 ### 配置客户端
 

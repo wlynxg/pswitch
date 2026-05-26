@@ -36,11 +36,12 @@ type configPayload struct {
 }
 
 type routePayload struct {
-	Prefix        string `json:"prefix"`
-	Kind          string `json:"type"`
-	Model         string `json:"model"`
-	UpstreamModel string `json:"upstream_model"`
-	Enabled       bool   `json:"enabled"`
+	Prefix        string   `json:"prefix"`
+	Kind          string   `json:"type"`
+	Model         string   `json:"model"`
+	UpstreamModel string   `json:"upstream_model"`
+	Providers     []string `json:"providers"`
+	Enabled       bool     `json:"enabled"`
 }
 
 type providerPayload struct {
@@ -320,6 +321,7 @@ func configFromModel(cfg config.Config) configPayload {
 			Kind:          route.Kind,
 			Model:         route.Model,
 			UpstreamModel: route.UpstreamModel,
+			Providers:     append([]string(nil), route.Providers...),
 			Enabled:       route.Enabled,
 		})
 	}
@@ -364,6 +366,7 @@ func (p configPayload) toConfig() (config.Config, error) {
 			Kind:          route.Kind,
 			Model:         route.Model,
 			UpstreamModel: route.UpstreamModel,
+			Providers:     append([]string(nil), route.Providers...),
 			Enabled:       route.Enabled,
 		})
 	}

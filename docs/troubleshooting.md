@@ -1,6 +1,6 @@
 # Troubleshooting
 
-- `init` writes to `config.toml` in the binary directory by default
+- if `settings.json` does not exist yet, `pswitch` starts with the built-in default config
 - dashboard-edited runtime config is written to `settings.json` in the current working directory
 - usage and provider stats are written to `metrics.json` in the current working directory
 - `api_key` must be non-empty for each provider
