@@ -2,6 +2,8 @@ package openai
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -69,6 +71,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, candidate := range candidates {
 		resp, err := h.forward(r, candidate, body)
 		if err != nil {
+			if isRequestCanceled(r.Context(), err) {
+				logx.Debugf("downstream request canceled provider=%s err=%v", candidate.Name, err)
+				return
+			}
 			lastErr = err
 			logx.Warnf("upstream request failed provider=%s err=%v", candidate.Name, err)
 			h.pool.MarkFailure(candidate.Name, time.Now())
@@ -207,4 +213,11 @@ func logUsage(provider string, usage upstream.UsageSummary) {
 		usage.OutputTokens,
 		usage.TotalTokens,
 	)
+}
+
+func isRequestCanceled(ctx context.Context, err error) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }

@@ -307,6 +307,60 @@ func TestHandlerRecordsStreamingUsageEvenIfClientWriteFailsAfterUsageArrives(t *
 	}
 }
 
+func TestHandlerDoesNotMarkProviderFailedWhenDownstreamRequestIsCanceled(t *testing.T) {
+	metricsStore, err := metrics.Open(t.TempDir() + "/metrics.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := pool.New(config.Config{
+		Mode:             "sequential",
+		FailureThreshold: 1,
+		Cooldown:         time.Second,
+		Providers: []config.Provider{
+			{Name: "only", BaseURL: "https://example.com", APIKey: "k1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h := NewHandler(p, Options{
+		Client:  http.DefaultClient,
+		Metrics: metricsStore,
+	})
+
+	reqBody, _ := json.Marshal(map[string]any{"model": "gpt-5.4", "input": "hello"})
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	ctx, cancel := context.WithCancel(req.Context())
+	cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	status, ok := p.Status("only")
+	if !ok {
+		t.Fatal("provider status not found")
+	}
+	if !status.Healthy {
+		t.Fatalf("provider healthy = %v, want true", status.Healthy)
+	}
+	if got := status.ConsecutiveFailures; got != 0 {
+		t.Fatalf("consecutive failures = %d, want 0", got)
+	}
+
+	snapshot := metricsStore.Snapshot(time.Now())
+	if got := snapshot.Overview.TotalFailures; got != 0 {
+		t.Fatalf("total failures = %d, want 0", got)
+	}
+	if got := snapshot.Model("gpt-5.4").FailureCount; got != 0 {
+		t.Fatalf("model failures = %d, want 0", got)
+	}
+}
+
 func testLogger(buf *bytes.Buffer) *zap.Logger {
 	encoderCfg := zap.NewDevelopmentEncoderConfig()
 	core := zapcore.NewCore(
