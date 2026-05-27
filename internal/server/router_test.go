@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -353,5 +354,86 @@ func TestRouteWithProvidersOnlyUsesNamedProviders(t *testing.T) {
 	case <-secondHit:
 		t.Fatal("unnamed provider second should not have been called")
 	default:
+	}
+}
+
+func TestDispatcherFailsOverWhenFirstProviderMissesResponseHeaderTimeout(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(150 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"slow"}`)
+	}))
+	defer first.Close()
+
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"fast"}`)
+	}))
+	defer second.Close()
+
+	cfg := config.Config{
+		Listen:              "127.0.0.1:0",
+		Mode:                "sequential",
+		FailureThreshold:    1,
+		Cooldown:            time.Second,
+		HealthCheckInterval: time.Second,
+		HealthCheckTimeout:  time.Second,
+		Routes: []config.Route{
+			{Prefix: "/codex", Kind: "openai", Enabled: true},
+		},
+		Providers: []config.Provider{
+			{Name: "first", BaseURL: first.URL, APIKey: "k1", Enabled: true},
+			{Name: "second", BaseURL: second.URL, APIKey: "k2", Enabled: true},
+		},
+	}
+
+	dir := t.TempDir()
+	manager, err := pruntime.New(dir+"/settings.json", dir+"/metrics.json", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dispatch := &dispatcher{
+		manager: manager,
+		upstreamClient: &http.Client{
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout:   50 * time.Millisecond,
+					KeepAlive: 30 * time.Second,
+				}).DialContext,
+				ResponseHeaderTimeout: 50 * time.Millisecond,
+			},
+		},
+	}
+
+	reqBody, _ := json.Marshal(map[string]any{"model": "gpt-5.4", "input": "hello"})
+	req := httptest.NewRequest(http.MethodPost, "/codex/v1/responses", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	rec := httptest.NewRecorder()
+	dispatch.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	if got := rec.Body.String(); got != `{"id":"fast"}` {
+		t.Fatalf("body = %q, want %q", got, `{"id":"fast"}`)
+	}
+}
+
+func TestNewUpstreamClientSetsAggressiveTimeoutsAndPooling(t *testing.T) {
+	client := newUpstreamClient()
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport type = %T, want *http.Transport", client.Transport)
+	}
+	if got, want := transport.ResponseHeaderTimeout, defaultUpstreamResponseHeaderTimeout; got != want {
+		t.Fatalf("response header timeout = %s, want %s", got, want)
+	}
+	if got, want := transport.TLSHandshakeTimeout, defaultUpstreamTLSHandshakeTimeout; got != want {
+		t.Fatalf("tls handshake timeout = %s, want %s", got, want)
+	}
+	if got, want := transport.MaxIdleConnsPerHost, defaultUpstreamMaxIdleConnsPerHost; got != want {
+		t.Fatalf("max idle conns per host = %d, want %d", got, want)
 	}
 }

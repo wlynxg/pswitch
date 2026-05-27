@@ -216,8 +216,8 @@ func logUsage(provider string, usage upstream.UsageSummary) {
 }
 
 func isRequestCanceled(ctx context.Context, err error) bool {
-	if ctx.Err() != nil {
-		return true
+	if ctx.Err() == nil {
+		return false
 	}
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+	return errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
