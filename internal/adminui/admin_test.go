@@ -257,7 +257,8 @@ func TestHandlerStatsReturnsMetricsAndProviderHealth(t *testing.T) {
 	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
 	manager.Metrics().RecordSuccess("one", metricsUsage(12, 34, 46), "gpt-5.4", now)
 	manager.Metrics().RecordFailure("one", "gpt-5.4", now)
-	manager.Pool().MarkFailure("one", now)
+	manager.Pool().MarkSuccess("one", now.Add(-2*time.Minute))
+	manager.Pool().MarkFailureWithReason("one", now, "tls handshake failed")
 
 	srv := httptest.NewServer(New(manager, ""))
 	defer srv.Close()
@@ -279,10 +280,13 @@ func TestHandlerStatsReturnsMetricsAndProviderHealth(t *testing.T) {
 			TotalTokens   int64 `json:"total_tokens"`
 		} `json:"overview"`
 		Providers []struct {
-			Name         string `json:"name"`
-			Healthy      bool   `json:"healthy"`
-			TotalTokens  int64  `json:"total_tokens"`
-			FailureCount int64  `json:"failure_count"`
+			Name          string    `json:"name"`
+			Healthy       bool      `json:"healthy"`
+			TotalTokens   int64     `json:"total_tokens"`
+			FailureCount  int64     `json:"failure_count"`
+			LastError     string    `json:"last_error"`
+			LastErrorAt   time.Time `json:"last_error_at"`
+			LastSuccessAt time.Time `json:"last_success_at"`
 		} `json:"providers"`
 		Models []struct {
 			Name        string `json:"name"`
@@ -300,6 +304,15 @@ func TestHandlerStatsReturnsMetricsAndProviderHealth(t *testing.T) {
 	}
 	if got.Providers[0].Name != "one" || got.Providers[0].Healthy || got.Providers[0].TotalTokens != 46 || got.Providers[0].FailureCount != 1 {
 		t.Fatalf("provider stats = %#v", got.Providers[0])
+	}
+	if got.Providers[0].LastError != "tls handshake failed" {
+		t.Fatalf("last error = %q, want %q", got.Providers[0].LastError, "tls handshake failed")
+	}
+	if got.Providers[0].LastErrorAt.IsZero() {
+		t.Fatal("expected last error time")
+	}
+	if got.Providers[0].LastSuccessAt.IsZero() {
+		t.Fatal("expected last success time")
 	}
 	if len(got.Models) != 1 || got.Models[0].Name != "gpt-5.4" || got.Models[0].TotalTokens != 46 {
 		t.Fatalf("model stats = %#v", got.Models)

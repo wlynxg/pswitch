@@ -361,6 +361,57 @@ func TestHandlerDoesNotMarkProviderFailedWhenDownstreamRequestIsCanceled(t *test
 	}
 }
 
+func TestHandlerStoresLastErrorReasonForFailoverStatus(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "broken", http.StatusServiceUnavailable)
+	}))
+	defer first.Close()
+
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"ok":true}`)
+	}))
+	defer second.Close()
+
+	p, err := pool.New(config.Config{
+		Mode:             "sequential",
+		FailureThreshold: 1,
+		Cooldown:         time.Second,
+		Providers: []config.Provider{
+			{Name: "first", BaseURL: first.URL, APIKey: "k1"},
+			{Name: "second", BaseURL: second.URL, APIKey: "k2"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h := NewHandler(p, Options{})
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	reqBody, _ := json.Marshal(map[string]any{"model": "gpt-5.4", "input": "hello"})
+	resp, err := http.Post(srv.URL+"/v1/responses", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+
+	st, ok := p.Status("first")
+	if !ok {
+		t.Fatal("provider status not found")
+	}
+	if st.LastError == "" {
+		t.Fatal("expected last error reason")
+	}
+	if !strings.Contains(st.LastError, "status 503") {
+		t.Fatalf("last error = %q, want status 503 detail", st.LastError)
+	}
+	if st.LastErrorAt.IsZero() {
+		t.Fatal("expected last error time")
+	}
+}
+
 func testLogger(buf *bytes.Buffer) *zap.Logger {
 	encoderCfg := zap.NewDevelopmentEncoderConfig()
 	core := zapcore.NewCore(

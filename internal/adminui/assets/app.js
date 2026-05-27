@@ -116,6 +116,9 @@ const messages = {
     "status.broken": "broken",
     "status.failures": "Consecutive failures",
     "status.nextProbe": "Next probe",
+    "status.lastError": "Last error",
+    "status.lastErrorAt": "Last error time",
+    "status.lastSuccessAt": "Last success",
     "status.requests": "Requests",
     "status.tokens": "Tokens",
     "status.na": "n/a",
@@ -240,6 +243,9 @@ const messages = {
     "status.broken": "异常",
     "status.failures": "连续失败",
     "status.nextProbe": "下次探测",
+    "status.lastError": "最后错误",
+    "status.lastErrorAt": "错误时间",
+    "status.lastSuccessAt": "最后成功",
     "status.requests": "请求",
     "status.tokens": "Token",
     "status.na": "无",
@@ -1014,6 +1020,17 @@ function updateProviderStatus(providers) {
     card.probeValue.textContent = provider.next_probe_at && provider.next_probe_at !== "0001-01-01T00:00:00Z"
       ? formatDateTime(provider.next_probe_at)
       : t("status.na");
+    card.lastErrorLabel.textContent = t("status.lastError");
+    card.lastErrorValue.textContent = provider.last_error || t("status.na");
+    card.lastErrorValue.title = provider.last_error || "";
+    card.lastErrorAtLabel.textContent = t("status.lastErrorAt");
+    card.lastErrorAtValue.textContent = provider.last_error_at && provider.last_error_at !== "0001-01-01T00:00:00Z"
+      ? formatDateTime(provider.last_error_at)
+      : t("status.na");
+    card.lastSuccessLabel.textContent = t("status.lastSuccessAt");
+    card.lastSuccessValue.textContent = provider.last_success_at && provider.last_success_at !== "0001-01-01T00:00:00Z"
+      ? formatDateTime(provider.last_success_at)
+      : t("status.na");
   });
   pruneMapEntries(state.view.providerStatusCards, providerStatusGridEl, seen);
 }
@@ -1030,12 +1047,15 @@ function createProviderStatusCard() {
   const token = createStatusMetric();
   const failure = createStatusMetric();
   const probe = createStatusMetric();
+  const lastError = createStatusMetric();
+  const lastErrorAt = createStatusMetric();
+  const lastSuccess = createStatusMetric();
 
   root.className = "status-card";
   header.className = "status-card-header";
   metrics.className = "status-metrics";
   header.append(title, badge);
-  metrics.append(request.root, token.root, failure.root, probe.root);
+  metrics.append(request.root, token.root, failure.root, probe.root, lastError.root, lastErrorAt.root, lastSuccess.root);
   root.append(header, baseURL, metrics);
 
   return {
@@ -1050,7 +1070,13 @@ function createProviderStatusCard() {
     failureLabel: failure.label,
     failureValue: failure.value,
     probeLabel: probe.label,
-    probeValue: probe.value
+    probeValue: probe.value,
+    lastErrorLabel: lastError.label,
+    lastErrorValue: lastError.value,
+    lastErrorAtLabel: lastErrorAt.label,
+    lastErrorAtValue: lastErrorAt.value,
+    lastSuccessLabel: lastSuccess.label,
+    lastSuccessValue: lastSuccess.value
   };
 }
 

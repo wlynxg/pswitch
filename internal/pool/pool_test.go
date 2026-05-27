@@ -196,6 +196,52 @@ func TestProbeDueRestoresProvider(t *testing.T) {
 	}
 }
 
+func TestStatusTracksLastFailureAndSuccessDetails(t *testing.T) {
+	p, err := New(config.Config{
+		Mode:             "round_robin",
+		FailureThreshold: 1,
+		Cooldown:         time.Second,
+		Providers: []config.Provider{
+			{Name: "a", BaseURL: "http://a", APIKey: "ka"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	failAt := time.Unix(100, 0)
+	successAt := failAt.Add(5 * time.Second)
+
+	p.MarkFailureWithReason("a", failAt, "tls handshake failed")
+
+	st, ok := p.Status("a")
+	if !ok {
+		t.Fatal("provider status not found")
+	}
+	if st.LastError != "tls handshake failed" {
+		t.Fatalf("last error = %q, want %q", st.LastError, "tls handshake failed")
+	}
+	if !st.LastErrorAt.Equal(failAt) {
+		t.Fatalf("last error at = %v, want %v", st.LastErrorAt, failAt)
+	}
+	if !st.LastSuccessAt.IsZero() {
+		t.Fatalf("last success at = %v, want zero", st.LastSuccessAt)
+	}
+
+	p.MarkSuccess("a", successAt)
+
+	st, ok = p.Status("a")
+	if !ok {
+		t.Fatal("provider status not found")
+	}
+	if !st.LastSuccessAt.Equal(successAt) {
+		t.Fatalf("last success at = %v, want %v", st.LastSuccessAt, successAt)
+	}
+	if st.LastError != "tls handshake failed" {
+		t.Fatalf("last error = %q, want %q", st.LastError, "tls handshake failed")
+	}
+}
+
 func names(items []ProviderSnapshot) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {

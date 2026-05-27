@@ -31,6 +31,9 @@ type ProviderStatus struct {
 	Healthy             bool
 	ConsecutiveFailures int
 	NextProbeAt         time.Time
+	LastError           string
+	LastErrorAt         time.Time
+	LastSuccessAt       time.Time
 }
 
 type ProbeEvent struct {
@@ -54,6 +57,9 @@ type providerState struct {
 	consecutiveFailures int
 	totalFailures       int
 	nextProbeAt         time.Time
+	lastError           string
+	lastErrorAt         time.Time
+	lastSuccessAt       time.Time
 }
 
 func New(cfg config.Config) (*Pool, error) {
@@ -132,7 +138,7 @@ func (p *Pool) CandidatesForNames(names []string, mode Mode, now time.Time) []Pr
 	return due
 }
 
-func (p *Pool) MarkSuccess(name string, _ time.Time) {
+func (p *Pool) MarkSuccess(name string, now time.Time) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -145,12 +151,17 @@ func (p *Pool) MarkSuccess(name string, _ time.Time) {
 	state.healthy = true
 	state.consecutiveFailures = 0
 	state.nextProbeAt = time.Time{}
+	state.lastSuccessAt = now
 	if p.mode == ModeRoundRobin {
 		p.cursor = (idx + 1) % len(p.providers)
 	}
 }
 
 func (p *Pool) MarkFailure(name string, now time.Time) {
+	p.MarkFailureWithReason(name, now, "")
+}
+
+func (p *Pool) MarkFailureWithReason(name string, now time.Time, reason string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -162,6 +173,8 @@ func (p *Pool) MarkFailure(name string, now time.Time) {
 	state := p.providers[idx]
 	state.consecutiveFailures++
 	state.totalFailures++
+	state.lastError = reason
+	state.lastErrorAt = now
 	if state.consecutiveFailures >= p.failureThreshold {
 		state.healthy = false
 		state.nextProbeAt = now.Add(p.cooldown)
@@ -182,6 +195,9 @@ func (p *Pool) Status(name string) (ProviderStatus, bool) {
 		Healthy:             state.healthy,
 		ConsecutiveFailures: state.consecutiveFailures,
 		NextProbeAt:         state.nextProbeAt,
+		LastError:           state.lastError,
+		LastErrorAt:         state.lastErrorAt,
+		LastSuccessAt:       state.lastSuccessAt,
 	}, true
 }
 
@@ -191,14 +207,14 @@ func (p *Pool) ProbeDue(ctx context.Context, client *http.Client, now time.Time)
 	for _, candidate := range candidates {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildTargetURL(candidate.BaseURL, "/v1/models", "").String(), nil)
 		if err != nil {
-			p.MarkFailure(candidate.Name, now)
+			p.MarkFailureWithReason(candidate.Name, now, err.Error())
 			continue
 		}
 		req.Header.Set("Authorization", "Bearer "+candidate.APIKey)
 
 		resp, err := client.Do(req)
 		if err != nil {
-			p.MarkFailure(candidate.Name, now)
+			p.MarkFailureWithReason(candidate.Name, now, err.Error())
 			continue
 		}
 
@@ -208,7 +224,7 @@ func (p *Pool) ProbeDue(ctx context.Context, client *http.Client, now time.Time)
 			events = append(events, ProbeEvent{Provider: candidate.Name, Kind: "recovered"})
 			continue
 		}
-		p.MarkFailure(candidate.Name, now)
+		p.MarkFailureWithReason(candidate.Name, now, "probe status "+resp.Status)
 	}
 	return events
 }

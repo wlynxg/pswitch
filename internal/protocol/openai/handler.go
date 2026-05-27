@@ -77,7 +77,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			lastErr = err
 			logx.Warnf("upstream request failed provider=%s err=%v", candidate.Name, err)
-			h.pool.MarkFailure(candidate.Name, time.Now())
+			h.pool.MarkFailureWithReason(candidate.Name, time.Now(), err.Error())
 			h.recordFailure(candidate.Name, model)
 			continue
 		}
@@ -91,7 +91,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				lastResp = stored
 			}
 			logx.Warnf("upstream returned failover status provider=%s status=%d", candidate.Name, resp.StatusCode)
-			h.pool.MarkFailure(candidate.Name, time.Now())
+			h.pool.MarkFailureWithReason(candidate.Name, time.Now(), fmt.Sprintf("status %d", resp.StatusCode))
 			h.recordFailure(candidate.Name, model)
 			continue
 		}

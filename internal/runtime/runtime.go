@@ -27,6 +27,9 @@ type ProviderStatus struct {
 	Healthy             bool      `json:"healthy"`
 	ConsecutiveFailures int       `json:"consecutive_failures"`
 	NextProbeAt         time.Time `json:"next_probe_at"`
+	LastError           string    `json:"last_error"`
+	LastErrorAt         time.Time `json:"last_error_at"`
+	LastSuccessAt       time.Time `json:"last_success_at"`
 }
 
 type UpdateResult struct {
@@ -128,6 +131,9 @@ func (m *Manager) ProviderStatuses() []ProviderStatus {
 			Healthy:             status.Healthy,
 			ConsecutiveFailures: status.ConsecutiveFailures,
 			NextProbeAt:         status.NextProbeAt,
+			LastError:           status.LastError,
+			LastErrorAt:         status.LastErrorAt,
+			LastSuccessAt:       status.LastSuccessAt,
 		})
 	}
 	return statuses

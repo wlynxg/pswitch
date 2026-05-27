@@ -93,6 +93,9 @@ type statsProviderPayload struct {
 	Healthy             bool                   `json:"healthy"`
 	ConsecutiveFailures int                    `json:"consecutive_failures"`
 	NextProbeAt         time.Time              `json:"next_probe_at"`
+	LastError           string                 `json:"last_error"`
+	LastErrorAt         time.Time              `json:"last_error_at"`
+	LastSuccessAt       time.Time              `json:"last_success_at"`
 	RequestCount        int64                  `json:"request_count"`
 	FailureCount        int64                  `json:"failure_count"`
 	InputTokens         int64                  `json:"input_tokens"`
@@ -253,6 +256,9 @@ func buildStats(manager *pruntime.Manager) statsResponse {
 			Healthy:             status.Healthy,
 			ConsecutiveFailures: status.ConsecutiveFailures,
 			NextProbeAt:         status.NextProbeAt,
+			LastError:           status.LastError,
+			LastErrorAt:         status.LastErrorAt,
+			LastSuccessAt:       status.LastSuccessAt,
 			RequestCount:        metric.RequestCount,
 			FailureCount:        metric.FailureCount,
 			InputTokens:         metric.InputTokens,
