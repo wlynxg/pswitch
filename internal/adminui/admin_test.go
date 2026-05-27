@@ -257,6 +257,7 @@ func TestHandlerStatsReturnsMetricsAndProviderHealth(t *testing.T) {
 	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
 	manager.Metrics().RecordSuccess("one", metricsUsage(12, 34, 46), "gpt-5.4", now)
 	manager.Metrics().RecordFailure("one", "gpt-5.4", now)
+	manager.Metrics().RecordStreamUsageIssue("one", "gpt-5.4", metrics.StreamUsageIssueOmitted, now)
 	manager.Pool().MarkSuccess("one", now.Add(-2*time.Minute))
 	manager.Pool().MarkFailureWithReason("one", now, "tls handshake failed")
 
@@ -275,22 +276,28 @@ func TestHandlerStatsReturnsMetricsAndProviderHealth(t *testing.T) {
 
 	var got struct {
 		Overview struct {
-			TotalRequests int64 `json:"total_requests"`
-			TotalFailures int64 `json:"total_failures"`
-			TotalTokens   int64 `json:"total_tokens"`
+			TotalRequests            int64 `json:"total_requests"`
+			TotalFailures            int64 `json:"total_failures"`
+			TotalTokens              int64 `json:"total_tokens"`
+			StreamUsageMissingCount  int64 `json:"stream_usage_missing_count"`
+			StreamUsageOmittedCount  int64 `json:"stream_usage_omitted_count"`
 		} `json:"overview"`
 		Providers []struct {
-			Name          string    `json:"name"`
-			Healthy       bool      `json:"healthy"`
-			TotalTokens   int64     `json:"total_tokens"`
-			FailureCount  int64     `json:"failure_count"`
-			LastError     string    `json:"last_error"`
-			LastErrorAt   time.Time `json:"last_error_at"`
-			LastSuccessAt time.Time `json:"last_success_at"`
+			Name                     string    `json:"name"`
+			Healthy                  bool      `json:"healthy"`
+			TotalTokens              int64     `json:"total_tokens"`
+			FailureCount             int64     `json:"failure_count"`
+			LastError                string    `json:"last_error"`
+			LastErrorAt              time.Time `json:"last_error_at"`
+			LastSuccessAt            time.Time `json:"last_success_at"`
+			StreamUsageMissingCount  int64     `json:"stream_usage_missing_count"`
+			StreamUsageOmittedCount  int64     `json:"stream_usage_omitted_count"`
 		} `json:"providers"`
 		Models []struct {
-			Name        string `json:"name"`
-			TotalTokens int64  `json:"total_tokens"`
+			Name                     string `json:"name"`
+			TotalTokens              int64  `json:"total_tokens"`
+			StreamUsageMissingCount  int64  `json:"stream_usage_missing_count"`
+			StreamUsageOmittedCount  int64  `json:"stream_usage_omitted_count"`
 		} `json:"models"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
@@ -298,6 +305,9 @@ func TestHandlerStatsReturnsMetricsAndProviderHealth(t *testing.T) {
 	}
 	if got.Overview.TotalRequests != 1 || got.Overview.TotalFailures != 1 || got.Overview.TotalTokens != 46 {
 		t.Fatalf("overview = %#v", got.Overview)
+	}
+	if got.Overview.StreamUsageMissingCount != 1 || got.Overview.StreamUsageOmittedCount != 1 {
+		t.Fatalf("overview stream usage counters = %#v", got.Overview)
 	}
 	if len(got.Providers) != 1 {
 		t.Fatalf("providers = %d, want 1", len(got.Providers))
@@ -314,8 +324,14 @@ func TestHandlerStatsReturnsMetricsAndProviderHealth(t *testing.T) {
 	if got.Providers[0].LastSuccessAt.IsZero() {
 		t.Fatal("expected last success time")
 	}
+	if got.Providers[0].StreamUsageMissingCount != 1 || got.Providers[0].StreamUsageOmittedCount != 1 {
+		t.Fatalf("provider stream usage counters = %#v", got.Providers[0])
+	}
 	if len(got.Models) != 1 || got.Models[0].Name != "gpt-5.4" || got.Models[0].TotalTokens != 46 {
 		t.Fatalf("model stats = %#v", got.Models)
+	}
+	if got.Models[0].StreamUsageMissingCount != 1 || got.Models[0].StreamUsageOmittedCount != 1 {
+		t.Fatalf("model stream usage counters = %#v", got.Models[0])
 	}
 }
 

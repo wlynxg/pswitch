@@ -73,13 +73,18 @@ type statsResponse struct {
 }
 
 type statsOverviewPayload struct {
-	TotalRequests     int64 `json:"total_requests"`
-	TotalFailures     int64 `json:"total_failures"`
-	TotalInputTokens  int64 `json:"total_input_tokens"`
-	TotalOutputTokens int64 `json:"total_output_tokens"`
-	TotalTokens       int64 `json:"total_tokens"`
-	HealthyProviders  int   `json:"healthy_providers"`
-	ProvidersCount    int   `json:"providers_count"`
+	TotalRequests               int64 `json:"total_requests"`
+	TotalFailures               int64 `json:"total_failures"`
+	TotalInputTokens            int64 `json:"total_input_tokens"`
+	TotalOutputTokens           int64 `json:"total_output_tokens"`
+	TotalTokens                 int64 `json:"total_tokens"`
+	StreamUsageMissingCount     int64 `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64 `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64 `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64 `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64 `json:"stream_usage_interrupted_count"`
+	HealthyProviders            int   `json:"healthy_providers"`
+	ProvidersCount              int   `json:"providers_count"`
 }
 
 type statsWindowsPayload struct {
@@ -101,6 +106,11 @@ type statsProviderPayload struct {
 	InputTokens         int64                  `json:"input_tokens"`
 	OutputTokens        int64                  `json:"output_tokens"`
 	TotalTokens         int64                  `json:"total_tokens"`
+	StreamUsageMissingCount     int64          `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64          `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64          `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64          `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64          `json:"stream_usage_interrupted_count"`
 	Last24h             metrics.WindowSnapshot `json:"last_24h"`
 	Last7d              metrics.WindowSnapshot `json:"last_7d"`
 }
@@ -112,6 +122,11 @@ type statsModelPayload struct {
 	InputTokens  int64                  `json:"input_tokens"`
 	OutputTokens int64                  `json:"output_tokens"`
 	TotalTokens  int64                  `json:"total_tokens"`
+	StreamUsageMissingCount     int64          `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64          `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64          `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64          `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64          `json:"stream_usage_interrupted_count"`
 	Last24h      metrics.WindowSnapshot `json:"last_24h"`
 	Last7d       metrics.WindowSnapshot `json:"last_7d"`
 }
@@ -264,6 +279,11 @@ func buildStats(manager *pruntime.Manager) statsResponse {
 			InputTokens:         metric.InputTokens,
 			OutputTokens:        metric.OutputTokens,
 			TotalTokens:         metric.TotalTokens,
+			StreamUsageMissingCount:     metric.StreamUsageMissingCount,
+			StreamUsageOmittedCount:     metric.StreamUsageOmittedCount,
+			StreamUsageCanceledCount:    metric.StreamUsageCanceledCount,
+			StreamUsageParseErrorCount:  metric.StreamUsageParseErrorCount,
+			StreamUsageInterruptedCount: metric.StreamUsageInterruptedCount,
 			Last24h:             metric.Last24h,
 			Last7d:              metric.Last7d,
 		})
@@ -278,6 +298,11 @@ func buildStats(manager *pruntime.Manager) statsResponse {
 			InputTokens:  model.InputTokens,
 			OutputTokens: model.OutputTokens,
 			TotalTokens:  model.TotalTokens,
+			StreamUsageMissingCount:     model.StreamUsageMissingCount,
+			StreamUsageOmittedCount:     model.StreamUsageOmittedCount,
+			StreamUsageCanceledCount:    model.StreamUsageCanceledCount,
+			StreamUsageParseErrorCount:  model.StreamUsageParseErrorCount,
+			StreamUsageInterruptedCount: model.StreamUsageInterruptedCount,
 			Last24h:      model.Last24h,
 			Last7d:       model.Last7d,
 		})
@@ -291,13 +316,18 @@ func buildStats(manager *pruntime.Manager) statsResponse {
 
 	return statsResponse{
 		Overview: statsOverviewPayload{
-			TotalRequests:     snapshot.Overview.TotalRequests,
-			TotalFailures:     snapshot.Overview.TotalFailures,
-			TotalInputTokens:  snapshot.Overview.TotalInputTokens,
-			TotalOutputTokens: snapshot.Overview.TotalOutputTokens,
-			TotalTokens:       snapshot.Overview.TotalTokens,
-			HealthyProviders:  healthyProviders,
-			ProvidersCount:    len(cfg.Providers),
+			TotalRequests:               snapshot.Overview.TotalRequests,
+			TotalFailures:               snapshot.Overview.TotalFailures,
+			TotalInputTokens:            snapshot.Overview.TotalInputTokens,
+			TotalOutputTokens:           snapshot.Overview.TotalOutputTokens,
+			TotalTokens:                 snapshot.Overview.TotalTokens,
+			StreamUsageMissingCount:     snapshot.Overview.StreamUsageMissingCount,
+			StreamUsageOmittedCount:     snapshot.Overview.StreamUsageOmittedCount,
+			StreamUsageCanceledCount:    snapshot.Overview.StreamUsageCanceledCount,
+			StreamUsageParseErrorCount:  snapshot.Overview.StreamUsageParseErrorCount,
+			StreamUsageInterruptedCount: snapshot.Overview.StreamUsageInterruptedCount,
+			HealthyProviders:            healthyProviders,
+			ProvidersCount:              len(cfg.Providers),
 		},
 		Windows: statsWindowsPayload{
 			Last24h: snapshot.Windows.Last24h,

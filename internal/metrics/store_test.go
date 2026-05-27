@@ -126,3 +126,53 @@ func TestStoreRecordsFailuresAndPrunesExpiredBuckets(t *testing.T) {
 		t.Fatalf("model failures = %d, want %d", got, want)
 	}
 }
+
+func TestStoreRecordsStreamUsageIssueCounters(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metrics.json")
+	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
+
+	store, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store.RecordStreamUsageIssue("alpha", "gpt-5.4", StreamUsageIssueOmitted, now)
+	store.RecordStreamUsageIssue("alpha", "gpt-5.4", StreamUsageIssueParseError, now)
+	store.RecordStreamUsageIssue("beta", "gpt-4.1", StreamUsageIssueInterrupted, now)
+
+	snapshot := store.Snapshot(now)
+	if got, want := snapshot.Overview.StreamUsageMissingCount, int64(3); got != want {
+		t.Fatalf("overview missing stream usage = %d, want %d", got, want)
+	}
+	if got, want := snapshot.Overview.StreamUsageOmittedCount, int64(1); got != want {
+		t.Fatalf("overview omitted stream usage = %d, want %d", got, want)
+	}
+	if got, want := snapshot.Overview.StreamUsageParseErrorCount, int64(1); got != want {
+		t.Fatalf("overview parse error stream usage = %d, want %d", got, want)
+	}
+	if got, want := snapshot.Overview.StreamUsageInterruptedCount, int64(1); got != want {
+		t.Fatalf("overview interrupted stream usage = %d, want %d", got, want)
+	}
+
+	alpha := snapshot.Provider("alpha")
+	if got, want := alpha.StreamUsageMissingCount, int64(2); got != want {
+		t.Fatalf("alpha missing stream usage = %d, want %d", got, want)
+	}
+	if got, want := alpha.StreamUsageOmittedCount, int64(1); got != want {
+		t.Fatalf("alpha omitted stream usage = %d, want %d", got, want)
+	}
+	if got, want := alpha.StreamUsageParseErrorCount, int64(1); got != want {
+		t.Fatalf("alpha parse error stream usage = %d, want %d", got, want)
+	}
+
+	model := snapshot.Model("gpt-5.4")
+	if got, want := model.StreamUsageMissingCount, int64(2); got != want {
+		t.Fatalf("model missing stream usage = %d, want %d", got, want)
+	}
+	if got, want := model.StreamUsageOmittedCount, int64(1); got != want {
+		t.Fatalf("model omitted stream usage = %d, want %d", got, want)
+	}
+	if got, want := model.StreamUsageParseErrorCount, int64(1); got != want {
+		t.Fatalf("model parse error stream usage = %d, want %d", got, want)
+	}
+}

@@ -46,8 +46,11 @@ func ExtractRequestedModel(body []byte) string {
 }
 
 type StreamUsageCollector struct {
-	pending []byte
-	usage   *UsageSummary
+	pending          []byte
+	usage            *UsageSummary
+	sawDone          bool
+	sawTerminalEvent bool
+	sawParseError    bool
 }
 
 func (c *StreamUsageCollector) Write(p []byte) (int, error) {
@@ -71,14 +74,43 @@ func (c *StreamUsageCollector) Usage() (UsageSummary, bool) {
 	return *c.usage, true
 }
 
+func (c *StreamUsageCollector) MissingReason() string {
+	if c.usage != nil {
+		return ""
+	}
+	if c.sawParseError {
+		return "parse_error"
+	}
+	if c.sawDone || c.sawTerminalEvent {
+		return "omitted"
+	}
+	return ""
+}
+
 func (c *StreamUsageCollector) consumeLine(line string) {
 	if !strings.HasPrefix(line, "data:") {
 		return
 	}
 
 	payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-	if payload == "" || payload == "[DONE]" {
+	if payload == "" {
 		return
+	}
+	if payload == "[DONE]" {
+		c.sawDone = true
+		return
+	}
+
+	if !json.Valid([]byte(payload)) {
+		c.sawParseError = true
+		return
+	}
+
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal([]byte(payload), &envelope); err == nil && envelope.Type == "response.completed" {
+		c.sawTerminalEvent = true
 	}
 
 	if usage, ok := ExtractUsage([]byte(payload)); ok {

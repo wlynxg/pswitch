@@ -17,51 +17,76 @@ const (
 )
 
 type Usage struct {
-	RequestCount int64
-	FailureCount int64
-	InputTokens  int64
-	OutputTokens int64
-	TotalTokens  int64
+	RequestCount                int64
+	FailureCount                int64
+	InputTokens                 int64
+	OutputTokens                int64
+	TotalTokens                 int64
+	StreamUsageMissingCount     int64
+	StreamUsageOmittedCount     int64
+	StreamUsageCanceledCount    int64
+	StreamUsageParseErrorCount  int64
+	StreamUsageInterruptedCount int64
 }
 
 type WindowSnapshot struct {
-	RequestCount int64 `json:"request_count"`
-	FailureCount int64 `json:"failure_count"`
-	InputTokens  int64 `json:"input_tokens"`
-	OutputTokens int64 `json:"output_tokens"`
-	TotalTokens  int64 `json:"total_tokens"`
+	RequestCount                int64 `json:"request_count"`
+	FailureCount                int64 `json:"failure_count"`
+	InputTokens                 int64 `json:"input_tokens"`
+	OutputTokens                int64 `json:"output_tokens"`
+	TotalTokens                 int64 `json:"total_tokens"`
+	StreamUsageMissingCount     int64 `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64 `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64 `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64 `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64 `json:"stream_usage_interrupted_count"`
 }
 
 type ProviderSnapshot struct {
-	Name         string         `json:"name"`
-	Totals       WindowSnapshot `json:"totals"`
-	Last24h      WindowSnapshot `json:"last_24h"`
-	Last7d       WindowSnapshot `json:"last_7d"`
-	TotalTokens  int64          `json:"total_tokens"`
-	RequestCount int64          `json:"request_count"`
-	FailureCount int64          `json:"failure_count"`
-	InputTokens  int64          `json:"input_tokens"`
-	OutputTokens int64          `json:"output_tokens"`
+	Name                        string         `json:"name"`
+	Totals                      WindowSnapshot `json:"totals"`
+	Last24h                     WindowSnapshot `json:"last_24h"`
+	Last7d                      WindowSnapshot `json:"last_7d"`
+	TotalTokens                 int64          `json:"total_tokens"`
+	RequestCount                int64          `json:"request_count"`
+	FailureCount                int64          `json:"failure_count"`
+	InputTokens                 int64          `json:"input_tokens"`
+	OutputTokens                int64          `json:"output_tokens"`
+	StreamUsageMissingCount     int64          `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64          `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64          `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64          `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64          `json:"stream_usage_interrupted_count"`
 }
 
 type ModelSnapshot struct {
-	Name         string         `json:"name"`
-	Totals       WindowSnapshot `json:"totals"`
-	Last24h      WindowSnapshot `json:"last_24h"`
-	Last7d       WindowSnapshot `json:"last_7d"`
-	TotalTokens  int64          `json:"total_tokens"`
-	RequestCount int64          `json:"request_count"`
-	FailureCount int64          `json:"failure_count"`
-	InputTokens  int64          `json:"input_tokens"`
-	OutputTokens int64          `json:"output_tokens"`
+	Name                        string         `json:"name"`
+	Totals                      WindowSnapshot `json:"totals"`
+	Last24h                     WindowSnapshot `json:"last_24h"`
+	Last7d                      WindowSnapshot `json:"last_7d"`
+	TotalTokens                 int64          `json:"total_tokens"`
+	RequestCount                int64          `json:"request_count"`
+	FailureCount                int64          `json:"failure_count"`
+	InputTokens                 int64          `json:"input_tokens"`
+	OutputTokens                int64          `json:"output_tokens"`
+	StreamUsageMissingCount     int64          `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64          `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64          `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64          `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64          `json:"stream_usage_interrupted_count"`
 }
 
 type OverviewSnapshot struct {
-	TotalRequests     int64 `json:"total_requests"`
-	TotalFailures     int64 `json:"total_failures"`
-	TotalInputTokens  int64 `json:"total_input_tokens"`
-	TotalOutputTokens int64 `json:"total_output_tokens"`
-	TotalTokens       int64 `json:"total_tokens"`
+	TotalRequests               int64 `json:"total_requests"`
+	TotalFailures               int64 `json:"total_failures"`
+	TotalInputTokens            int64 `json:"total_input_tokens"`
+	TotalOutputTokens           int64 `json:"total_output_tokens"`
+	TotalTokens                 int64 `json:"total_tokens"`
+	StreamUsageMissingCount     int64 `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64 `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64 `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64 `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64 `json:"stream_usage_interrupted_count"`
 }
 
 type WindowsSnapshot struct {
@@ -107,11 +132,16 @@ type storeFile struct {
 }
 
 type usageRecord struct {
-	RequestCount int64 `json:"request_count"`
-	FailureCount int64 `json:"failure_count"`
-	InputTokens  int64 `json:"input_tokens"`
-	OutputTokens int64 `json:"output_tokens"`
-	TotalTokens  int64 `json:"total_tokens"`
+	RequestCount                int64 `json:"request_count"`
+	FailureCount                int64 `json:"failure_count"`
+	InputTokens                 int64 `json:"input_tokens"`
+	OutputTokens                int64 `json:"output_tokens"`
+	TotalTokens                 int64 `json:"total_tokens"`
+	StreamUsageMissingCount     int64 `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64 `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64 `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64 `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64 `json:"stream_usage_interrupted_count"`
 }
 
 type Store struct {
@@ -147,6 +177,32 @@ func (s *Store) RecordFailure(provider, model string, now time.Time) {
 	s.record(provider, model, Usage{FailureCount: 1}, now)
 }
 
+type StreamUsageIssueKind string
+
+const (
+	StreamUsageIssueOmitted     StreamUsageIssueKind = "omitted"
+	StreamUsageIssueCanceled    StreamUsageIssueKind = "canceled"
+	StreamUsageIssueParseError  StreamUsageIssueKind = "parse_error"
+	StreamUsageIssueInterrupted StreamUsageIssueKind = "interrupted"
+)
+
+func (s *Store) RecordStreamUsageIssue(provider, model string, kind StreamUsageIssueKind, now time.Time) {
+	usage := Usage{StreamUsageMissingCount: 1}
+	switch kind {
+	case StreamUsageIssueOmitted:
+		usage.StreamUsageOmittedCount = 1
+	case StreamUsageIssueCanceled:
+		usage.StreamUsageCanceledCount = 1
+	case StreamUsageIssueParseError:
+		usage.StreamUsageParseErrorCount = 1
+	case StreamUsageIssueInterrupted:
+		usage.StreamUsageInterruptedCount = 1
+	default:
+		usage.StreamUsageInterruptedCount = 1
+	}
+	s.record(provider, model, usage, now)
+}
+
 func (s *Store) Snapshot(now time.Time) Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -179,15 +235,20 @@ func (s *Store) Snapshot(now time.Time) Snapshot {
 
 	for provider, totals := range s.data.Providers {
 		item := ProviderSnapshot{
-			Name:         provider,
-			Totals:       toWindow(totals),
-			Last24h:      WindowSnapshot{},
-			Last7d:       WindowSnapshot{},
-			TotalTokens:  totals.TotalTokens,
-			RequestCount: totals.RequestCount,
-			FailureCount: totals.FailureCount,
-			InputTokens:  totals.InputTokens,
-			OutputTokens: totals.OutputTokens,
+			Name:                        provider,
+			Totals:                      toWindow(totals),
+			Last24h:                     WindowSnapshot{},
+			Last7d:                      WindowSnapshot{},
+			TotalTokens:                 totals.TotalTokens,
+			RequestCount:                totals.RequestCount,
+			FailureCount:                totals.FailureCount,
+			InputTokens:                 totals.InputTokens,
+			OutputTokens:                totals.OutputTokens,
+			StreamUsageMissingCount:     totals.StreamUsageMissingCount,
+			StreamUsageOmittedCount:     totals.StreamUsageOmittedCount,
+			StreamUsageCanceledCount:    totals.StreamUsageCanceledCount,
+			StreamUsageParseErrorCount:  totals.StreamUsageParseErrorCount,
+			StreamUsageInterruptedCount: totals.StreamUsageInterruptedCount,
 		}
 
 		for hour, record := range s.data.ByProvider[provider] {
@@ -207,15 +268,20 @@ func (s *Store) Snapshot(now time.Time) Snapshot {
 
 	for model, totals := range s.data.Models {
 		item := ModelSnapshot{
-			Name:         model,
-			Totals:       toWindow(totals),
-			Last24h:      WindowSnapshot{},
-			Last7d:       WindowSnapshot{},
-			TotalTokens:  totals.TotalTokens,
-			RequestCount: totals.RequestCount,
-			FailureCount: totals.FailureCount,
-			InputTokens:  totals.InputTokens,
-			OutputTokens: totals.OutputTokens,
+			Name:                        model,
+			Totals:                      toWindow(totals),
+			Last24h:                     WindowSnapshot{},
+			Last7d:                      WindowSnapshot{},
+			TotalTokens:                 totals.TotalTokens,
+			RequestCount:                totals.RequestCount,
+			FailureCount:                totals.FailureCount,
+			InputTokens:                 totals.InputTokens,
+			OutputTokens:                totals.OutputTokens,
+			StreamUsageMissingCount:     totals.StreamUsageMissingCount,
+			StreamUsageOmittedCount:     totals.StreamUsageOmittedCount,
+			StreamUsageCanceledCount:    totals.StreamUsageCanceledCount,
+			StreamUsageParseErrorCount:  totals.StreamUsageParseErrorCount,
+			StreamUsageInterruptedCount: totals.StreamUsageInterruptedCount,
 		}
 
 		for hour, record := range s.data.ByModel[model] {
@@ -365,11 +431,16 @@ func (s *Store) persistLocked() error {
 
 func toRecord(usage Usage) usageRecord {
 	return usageRecord{
-		RequestCount: usage.RequestCount,
-		FailureCount: usage.FailureCount,
-		InputTokens:  usage.InputTokens,
-		OutputTokens: usage.OutputTokens,
-		TotalTokens:  usage.TotalTokens,
+		RequestCount:                usage.RequestCount,
+		FailureCount:                usage.FailureCount,
+		InputTokens:                 usage.InputTokens,
+		OutputTokens:                usage.OutputTokens,
+		TotalTokens:                 usage.TotalTokens,
+		StreamUsageMissingCount:     usage.StreamUsageMissingCount,
+		StreamUsageOmittedCount:     usage.StreamUsageOmittedCount,
+		StreamUsageCanceledCount:    usage.StreamUsageCanceledCount,
+		StreamUsageParseErrorCount:  usage.StreamUsageParseErrorCount,
+		StreamUsageInterruptedCount: usage.StreamUsageInterruptedCount,
 	}
 }
 
@@ -379,26 +450,41 @@ func addRecord(base, delta usageRecord) usageRecord {
 	base.InputTokens += delta.InputTokens
 	base.OutputTokens += delta.OutputTokens
 	base.TotalTokens += delta.TotalTokens
+	base.StreamUsageMissingCount += delta.StreamUsageMissingCount
+	base.StreamUsageOmittedCount += delta.StreamUsageOmittedCount
+	base.StreamUsageCanceledCount += delta.StreamUsageCanceledCount
+	base.StreamUsageParseErrorCount += delta.StreamUsageParseErrorCount
+	base.StreamUsageInterruptedCount += delta.StreamUsageInterruptedCount
 	return base
 }
 
 func toOverview(record usageRecord) OverviewSnapshot {
 	return OverviewSnapshot{
-		TotalRequests:     record.RequestCount,
-		TotalFailures:     record.FailureCount,
-		TotalInputTokens:  record.InputTokens,
-		TotalOutputTokens: record.OutputTokens,
-		TotalTokens:       record.TotalTokens,
+		TotalRequests:               record.RequestCount,
+		TotalFailures:               record.FailureCount,
+		TotalInputTokens:            record.InputTokens,
+		TotalOutputTokens:           record.OutputTokens,
+		TotalTokens:                 record.TotalTokens,
+		StreamUsageMissingCount:     record.StreamUsageMissingCount,
+		StreamUsageOmittedCount:     record.StreamUsageOmittedCount,
+		StreamUsageCanceledCount:    record.StreamUsageCanceledCount,
+		StreamUsageParseErrorCount:  record.StreamUsageParseErrorCount,
+		StreamUsageInterruptedCount: record.StreamUsageInterruptedCount,
 	}
 }
 
 func toWindow(record usageRecord) WindowSnapshot {
 	return WindowSnapshot{
-		RequestCount: record.RequestCount,
-		FailureCount: record.FailureCount,
-		InputTokens:  record.InputTokens,
-		OutputTokens: record.OutputTokens,
-		TotalTokens:  record.TotalTokens,
+		RequestCount:                record.RequestCount,
+		FailureCount:                record.FailureCount,
+		InputTokens:                 record.InputTokens,
+		OutputTokens:                record.OutputTokens,
+		TotalTokens:                 record.TotalTokens,
+		StreamUsageMissingCount:     record.StreamUsageMissingCount,
+		StreamUsageOmittedCount:     record.StreamUsageOmittedCount,
+		StreamUsageCanceledCount:    record.StreamUsageCanceledCount,
+		StreamUsageParseErrorCount:  record.StreamUsageParseErrorCount,
+		StreamUsageInterruptedCount: record.StreamUsageInterruptedCount,
 	}
 }
 
@@ -408,6 +494,11 @@ func addWindow(base WindowSnapshot, delta usageRecord) WindowSnapshot {
 	base.InputTokens += delta.InputTokens
 	base.OutputTokens += delta.OutputTokens
 	base.TotalTokens += delta.TotalTokens
+	base.StreamUsageMissingCount += delta.StreamUsageMissingCount
+	base.StreamUsageOmittedCount += delta.StreamUsageOmittedCount
+	base.StreamUsageCanceledCount += delta.StreamUsageCanceledCount
+	base.StreamUsageParseErrorCount += delta.StreamUsageParseErrorCount
+	base.StreamUsageInterruptedCount += delta.StreamUsageInterruptedCount
 	return base
 }
 

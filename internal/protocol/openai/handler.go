@@ -108,7 +108,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					logUsage(candidate.Name, usage)
 					h.recordSuccess(candidate.Name, model, usage)
 				} else {
-					logx.Warnf("stream forwarding interrupted before usage arrived provider=%s err=%v", candidate.Name, err)
+					reason := collector.MissingReason()
+					if isRequestCanceled(r.Context(), err) {
+						reason = string(metrics.StreamUsageIssueCanceled)
+					}
+					if reason == "" {
+						reason = string(metrics.StreamUsageIssueInterrupted)
+					}
+					logx.Warnf("stream usage unavailable provider=%s reason=%s err=%v", candidate.Name, reason, err)
+					h.recordStreamUsageIssue(candidate.Name, model, reason)
 				}
 				return
 			}
@@ -116,7 +124,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				logUsage(candidate.Name, usage)
 				h.recordSuccess(candidate.Name, model, usage)
 			} else {
-				logx.Warnf("stream completed without usage provider=%s status=%d", candidate.Name, resp.StatusCode)
+				reason := collector.MissingReason()
+				if reason == "" {
+					reason = string(metrics.StreamUsageIssueOmitted)
+				}
+				logx.Warnf("stream usage unavailable provider=%s reason=%s status=%d", candidate.Name, reason, resp.StatusCode)
+				h.recordStreamUsageIssue(candidate.Name, model, reason)
 				h.recordSuccess(candidate.Name, model, upstream.UsageSummary{})
 			}
 			return
@@ -191,6 +204,19 @@ func (h *Handler) recordFailure(provider, model string) {
 		return
 	}
 	h.metrics.RecordFailure(provider, model, time.Now())
+}
+
+func (h *Handler) recordStreamUsageIssue(provider, model, reason string) {
+	if h.metrics == nil {
+		return
+	}
+	kind := metrics.StreamUsageIssueKind(reason)
+	switch kind {
+	case metrics.StreamUsageIssueOmitted, metrics.StreamUsageIssueCanceled, metrics.StreamUsageIssueParseError, metrics.StreamUsageIssueInterrupted:
+	default:
+		kind = metrics.StreamUsageIssueInterrupted
+	}
+	h.metrics.RecordStreamUsageIssue(provider, model, kind, time.Now())
 }
 
 func isStreaming(header http.Header) bool {

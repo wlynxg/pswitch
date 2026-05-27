@@ -412,6 +412,101 @@ func TestHandlerStoresLastErrorReasonForFailoverStatus(t *testing.T) {
 	}
 }
 
+func TestHandlerRecordsMissingStreamUsageAsOmitted(t *testing.T) {
+	metricsStore, err := metrics.Open(t.TempDir() + "/metrics.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "event: response.completed\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\"}}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer upstreamServer.Close()
+
+	p, err := pool.New(config.Config{
+		Mode:             "sequential",
+		FailureThreshold: 1,
+		Cooldown:         time.Second,
+		Providers: []config.Provider{
+			{Name: "only", BaseURL: upstreamServer.URL, APIKey: "k1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h := NewHandler(p, Options{Metrics: metricsStore})
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	reqBody, _ := json.Marshal(map[string]any{"model": "gpt-5.4", "input": "hello", "stream": true})
+	resp, err := http.Post(srv.URL+"/v1/responses", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	snapshot := metricsStore.Snapshot(time.Now())
+	if got, want := snapshot.Overview.StreamUsageMissingCount, int64(1); got != want {
+		t.Fatalf("missing stream usage = %d, want %d", got, want)
+	}
+	if got, want := snapshot.Overview.StreamUsageOmittedCount, int64(1); got != want {
+		t.Fatalf("omitted stream usage = %d, want %d", got, want)
+	}
+}
+
+func TestHandlerRecordsMalformedStreamUsageAsParseError(t *testing.T) {
+	metricsStore, err := metrics.Open(t.TempDir() + "/metrics.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "data: {not-json}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer upstreamServer.Close()
+
+	p, err := pool.New(config.Config{
+		Mode:             "sequential",
+		FailureThreshold: 1,
+		Cooldown:         time.Second,
+		Providers: []config.Provider{
+			{Name: "only", BaseURL: upstreamServer.URL, APIKey: "k1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h := NewHandler(p, Options{Metrics: metricsStore})
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	reqBody, _ := json.Marshal(map[string]any{"model": "gpt-5.4", "input": "hello", "stream": true})
+	resp, err := http.Post(srv.URL+"/v1/responses", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	snapshot := metricsStore.Snapshot(time.Now())
+	if got, want := snapshot.Overview.StreamUsageMissingCount, int64(1); got != want {
+		t.Fatalf("missing stream usage = %d, want %d", got, want)
+	}
+	if got, want := snapshot.Overview.StreamUsageParseErrorCount, int64(1); got != want {
+		t.Fatalf("parse error stream usage = %d, want %d", got, want)
+	}
+}
+
 func testLogger(buf *bytes.Buffer) *zap.Logger {
 	encoderCfg := zap.NewDevelopmentEncoderConfig()
 	core := zapcore.NewCore(
