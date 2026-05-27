@@ -4,6 +4,7 @@ bin/
 psw/
 .superpowers/
 docs/superpowers/
+docs/internal/
 
 # Go
 *.test
