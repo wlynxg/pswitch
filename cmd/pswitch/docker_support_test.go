@@ -19,6 +19,8 @@ func TestDockerfileUsesPersistentDataDirectory(t *testing.T) {
 		"WORKDIR /data",
 		"EXPOSE 8080",
 		`ENTRYPOINT ["pswitch"]`,
+		"ARG GOPROXY",
+		"ENV GOPROXY=${GOPROXY}",
 	} {
 		if !strings.Contains(text, snippet) {
 			t.Fatalf("Dockerfile missing %q", snippet)
@@ -41,6 +43,7 @@ func TestDockerComposePersistsRuntimeFiles(t *testing.T) {
 		`- "8080:8080"`,
 		"./data:/data",
 		"PSWITCH_ADMIN_TOKEN",
+		"GOPROXY",
 	} {
 		if !strings.Contains(text, snippet) {
 			t.Fatalf("docker-compose.yml missing %q", snippet)
