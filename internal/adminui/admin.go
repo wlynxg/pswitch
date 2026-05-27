@@ -45,10 +45,11 @@ type routePayload struct {
 }
 
 type providerPayload struct {
-	Name    string `json:"name"`
-	BaseURL string `json:"base_url"`
-	APIKey  string `json:"api_key"`
-	Enabled bool   `json:"enabled"`
+	Name      string `json:"name"`
+	BaseURL   string `json:"base_url"`
+	APIKey    string `json:"api_key"`
+	HasAPIKey bool   `json:"has_api_key,omitempty"`
+	Enabled   bool   `json:"enabled"`
 }
 
 type stateResponse struct {
@@ -93,42 +94,42 @@ type statsWindowsPayload struct {
 }
 
 type statsProviderPayload struct {
-	Name                string                 `json:"name"`
-	BaseURL             string                 `json:"base_url"`
-	Healthy             bool                   `json:"healthy"`
-	ConsecutiveFailures int                    `json:"consecutive_failures"`
-	NextProbeAt         time.Time              `json:"next_probe_at"`
-	LastError           string                 `json:"last_error"`
-	LastErrorAt         time.Time              `json:"last_error_at"`
-	LastSuccessAt       time.Time              `json:"last_success_at"`
-	RequestCount        int64                  `json:"request_count"`
-	FailureCount        int64                  `json:"failure_count"`
-	InputTokens         int64                  `json:"input_tokens"`
-	OutputTokens        int64                  `json:"output_tokens"`
-	TotalTokens         int64                  `json:"total_tokens"`
-	StreamUsageMissingCount     int64          `json:"stream_usage_missing_count"`
-	StreamUsageOmittedCount     int64          `json:"stream_usage_omitted_count"`
-	StreamUsageCanceledCount    int64          `json:"stream_usage_canceled_count"`
-	StreamUsageParseErrorCount  int64          `json:"stream_usage_parse_error_count"`
-	StreamUsageInterruptedCount int64          `json:"stream_usage_interrupted_count"`
-	Last24h             metrics.WindowSnapshot `json:"last_24h"`
-	Last7d              metrics.WindowSnapshot `json:"last_7d"`
+	Name                        string                 `json:"name"`
+	BaseURL                     string                 `json:"base_url"`
+	Healthy                     bool                   `json:"healthy"`
+	ConsecutiveFailures         int                    `json:"consecutive_failures"`
+	NextProbeAt                 time.Time              `json:"next_probe_at"`
+	LastError                   string                 `json:"last_error"`
+	LastErrorAt                 time.Time              `json:"last_error_at"`
+	LastSuccessAt               time.Time              `json:"last_success_at"`
+	RequestCount                int64                  `json:"request_count"`
+	FailureCount                int64                  `json:"failure_count"`
+	InputTokens                 int64                  `json:"input_tokens"`
+	OutputTokens                int64                  `json:"output_tokens"`
+	TotalTokens                 int64                  `json:"total_tokens"`
+	StreamUsageMissingCount     int64                  `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64                  `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64                  `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64                  `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64                  `json:"stream_usage_interrupted_count"`
+	Last24h                     metrics.WindowSnapshot `json:"last_24h"`
+	Last7d                      metrics.WindowSnapshot `json:"last_7d"`
 }
 
 type statsModelPayload struct {
-	Name         string                 `json:"name"`
-	RequestCount int64                  `json:"request_count"`
-	FailureCount int64                  `json:"failure_count"`
-	InputTokens  int64                  `json:"input_tokens"`
-	OutputTokens int64                  `json:"output_tokens"`
-	TotalTokens  int64                  `json:"total_tokens"`
-	StreamUsageMissingCount     int64          `json:"stream_usage_missing_count"`
-	StreamUsageOmittedCount     int64          `json:"stream_usage_omitted_count"`
-	StreamUsageCanceledCount    int64          `json:"stream_usage_canceled_count"`
-	StreamUsageParseErrorCount  int64          `json:"stream_usage_parse_error_count"`
-	StreamUsageInterruptedCount int64          `json:"stream_usage_interrupted_count"`
-	Last24h      metrics.WindowSnapshot `json:"last_24h"`
-	Last7d       metrics.WindowSnapshot `json:"last_7d"`
+	Name                        string                 `json:"name"`
+	RequestCount                int64                  `json:"request_count"`
+	FailureCount                int64                  `json:"failure_count"`
+	InputTokens                 int64                  `json:"input_tokens"`
+	OutputTokens                int64                  `json:"output_tokens"`
+	TotalTokens                 int64                  `json:"total_tokens"`
+	StreamUsageMissingCount     int64                  `json:"stream_usage_missing_count"`
+	StreamUsageOmittedCount     int64                  `json:"stream_usage_omitted_count"`
+	StreamUsageCanceledCount    int64                  `json:"stream_usage_canceled_count"`
+	StreamUsageParseErrorCount  int64                  `json:"stream_usage_parse_error_count"`
+	StreamUsageInterruptedCount int64                  `json:"stream_usage_interrupted_count"`
+	Last24h                     metrics.WindowSnapshot `json:"last_24h"`
+	Last7d                      metrics.WindowSnapshot `json:"last_7d"`
 }
 
 func New(manager *pruntime.Manager, adminToken string) http.Handler {
@@ -158,7 +159,7 @@ func New(manager *pruntime.Manager, adminToken string) http.Handler {
 				return
 			}
 
-			cfg, err := payload.toConfig()
+			cfg, err := payload.toConfig(manager.Config())
 			if err != nil {
 				writeError(w, http.StatusBadRequest, err)
 				return
@@ -266,45 +267,45 @@ func buildStats(manager *pruntime.Manager) statsResponse {
 		status := statusByName[provider.Name]
 		metric := snapshot.Provider(provider.Name)
 		providers = append(providers, statsProviderPayload{
-			Name:                provider.Name,
-			BaseURL:             provider.BaseURL,
-			Healthy:             status.Healthy,
-			ConsecutiveFailures: status.ConsecutiveFailures,
-			NextProbeAt:         status.NextProbeAt,
-			LastError:           status.LastError,
-			LastErrorAt:         status.LastErrorAt,
-			LastSuccessAt:       status.LastSuccessAt,
-			RequestCount:        metric.RequestCount,
-			FailureCount:        metric.FailureCount,
-			InputTokens:         metric.InputTokens,
-			OutputTokens:        metric.OutputTokens,
-			TotalTokens:         metric.TotalTokens,
+			Name:                        provider.Name,
+			BaseURL:                     provider.BaseURL,
+			Healthy:                     status.Healthy,
+			ConsecutiveFailures:         status.ConsecutiveFailures,
+			NextProbeAt:                 status.NextProbeAt,
+			LastError:                   status.LastError,
+			LastErrorAt:                 status.LastErrorAt,
+			LastSuccessAt:               status.LastSuccessAt,
+			RequestCount:                metric.RequestCount,
+			FailureCount:                metric.FailureCount,
+			InputTokens:                 metric.InputTokens,
+			OutputTokens:                metric.OutputTokens,
+			TotalTokens:                 metric.TotalTokens,
 			StreamUsageMissingCount:     metric.StreamUsageMissingCount,
 			StreamUsageOmittedCount:     metric.StreamUsageOmittedCount,
 			StreamUsageCanceledCount:    metric.StreamUsageCanceledCount,
 			StreamUsageParseErrorCount:  metric.StreamUsageParseErrorCount,
 			StreamUsageInterruptedCount: metric.StreamUsageInterruptedCount,
-			Last24h:             metric.Last24h,
-			Last7d:              metric.Last7d,
+			Last24h:                     metric.Last24h,
+			Last7d:                      metric.Last7d,
 		})
 	}
 
 	models := make([]statsModelPayload, 0, len(snapshot.Models))
 	for _, model := range snapshot.Models {
 		models = append(models, statsModelPayload{
-			Name:         model.Name,
-			RequestCount: model.RequestCount,
-			FailureCount: model.FailureCount,
-			InputTokens:  model.InputTokens,
-			OutputTokens: model.OutputTokens,
-			TotalTokens:  model.TotalTokens,
+			Name:                        model.Name,
+			RequestCount:                model.RequestCount,
+			FailureCount:                model.FailureCount,
+			InputTokens:                 model.InputTokens,
+			OutputTokens:                model.OutputTokens,
+			TotalTokens:                 model.TotalTokens,
 			StreamUsageMissingCount:     model.StreamUsageMissingCount,
 			StreamUsageOmittedCount:     model.StreamUsageOmittedCount,
 			StreamUsageCanceledCount:    model.StreamUsageCanceledCount,
 			StreamUsageParseErrorCount:  model.StreamUsageParseErrorCount,
 			StreamUsageInterruptedCount: model.StreamUsageInterruptedCount,
-			Last24h:      model.Last24h,
-			Last7d:       model.Last7d,
+			Last24h:                     model.Last24h,
+			Last7d:                      model.Last7d,
 		})
 	}
 	sort.Slice(models, func(i, j int) bool {
@@ -363,16 +364,17 @@ func configFromModel(cfg config.Config) configPayload {
 	}
 	for _, provider := range cfg.Providers {
 		payload.Providers = append(payload.Providers, providerPayload{
-			Name:    provider.Name,
-			BaseURL: provider.BaseURL,
-			APIKey:  provider.APIKey,
-			Enabled: provider.Enabled,
+			Name:      provider.Name,
+			BaseURL:   provider.BaseURL,
+			APIKey:    "",
+			HasAPIKey: strings.TrimSpace(provider.APIKey) != "",
+			Enabled:   provider.Enabled,
 		})
 	}
 	return payload
 }
 
-func (p configPayload) toConfig() (config.Config, error) {
+func (p configPayload) toConfig(current config.Config) (config.Config, error) {
 	cooldown, err := time.ParseDuration(strings.TrimSpace(p.Cooldown))
 	if err != nil {
 		return config.Config{}, fmt.Errorf("parse cooldown: %w", err)
@@ -407,14 +409,30 @@ func (p configPayload) toConfig() (config.Config, error) {
 		})
 	}
 	for _, provider := range p.Providers {
+		apiKey := strings.TrimSpace(provider.APIKey)
+		if apiKey == "" {
+			if currentKey, ok := findExistingAPIKey(current.Providers, provider.Name); ok {
+				apiKey = currentKey
+			}
+		}
 		cfg.Providers = append(cfg.Providers, config.Provider{
 			Name:    provider.Name,
 			BaseURL: provider.BaseURL,
-			APIKey:  provider.APIKey,
+			APIKey:  apiKey,
 			Enabled: provider.Enabled,
 		})
 	}
 	return cfg, nil
+}
+
+func findExistingAPIKey(providers []config.Provider, name string) (string, bool) {
+	name = strings.TrimSpace(name)
+	for _, provider := range providers {
+		if strings.EqualFold(strings.TrimSpace(provider.Name), name) && strings.TrimSpace(provider.APIKey) != "" {
+			return provider.APIKey, true
+		}
+	}
+	return "", false
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

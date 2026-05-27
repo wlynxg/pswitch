@@ -130,6 +130,41 @@ func TestHandlerMetaExposesDashboardPrefix(t *testing.T) {
 	}
 }
 
+func TestHandlerStateMasksStoredAPIKeys(t *testing.T) {
+	manager := newTestManager(t)
+
+	srv := httptest.NewServer(New(manager, ""))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var got struct {
+		Config struct {
+			Providers []struct {
+				Name      string `json:"name"`
+				APIKey    string `json:"api_key"`
+				HasAPIKey bool   `json:"has_api_key"`
+			} `json:"providers"`
+		} `json:"config"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Config.Providers) != 1 {
+		t.Fatalf("providers = %d, want 1", len(got.Config.Providers))
+	}
+	if got.Config.Providers[0].APIKey != "" {
+		t.Fatalf("api_key = %q, want empty masked response", got.Config.Providers[0].APIKey)
+	}
+	if !got.Config.Providers[0].HasAPIKey {
+		t.Fatal("expected has_api_key=true")
+	}
+}
+
 func TestHandlerSavesConfigAndReturnsRestartNotice(t *testing.T) {
 	manager := newTestManager(t)
 	provider := newAdminUITestProviderServer(t, "Bearer k1")
@@ -192,6 +227,53 @@ func TestHandlerSavesConfigAndReturnsRestartNotice(t *testing.T) {
 	}
 	if len(got.Messages) == 0 {
 		t.Fatal("expected restart warning message")
+	}
+}
+
+func TestHandlerSavePreservesExistingAPIKeyWhenPayloadLeavesItBlank(t *testing.T) {
+	manager := newTestManager(t)
+	provider := newAdminUITestProviderServer(t, "Bearer k1")
+	defer provider.Close()
+
+	srv := httptest.NewServer(New(manager, "secret"))
+	defer srv.Close()
+
+	payload := map[string]any{
+		"listen":                "127.0.0.1:8080",
+		"mode":                  "round_robin",
+		"failure_threshold":     1,
+		"cooldown":              "20s",
+		"health_check_interval": "15s",
+		"health_check_timeout":  "3s",
+		"routes": []map[string]any{
+			{"prefix": "/codex", "type": "openai", "enabled": true},
+		},
+		"providers": []map[string]any{
+			{"name": "one", "base_url": provider.URL, "api_key": "", "enabled": true},
+		},
+	}
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/config", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set(headerAdminToken, "secret")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d, want %d body=%s", got, want, string(body))
+	}
+
+	if got := manager.Config().Providers[0].APIKey; got != "k1" {
+		t.Fatalf("api key = %q, want preserved key", got)
 	}
 }
 
