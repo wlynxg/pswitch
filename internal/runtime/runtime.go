@@ -1,7 +1,10 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -84,6 +87,9 @@ func (m *Manager) UpdateConfig(next config.Config) (UpdateResult, error) {
 	if err := next.Validate(); err != nil {
 		return UpdateResult{}, err
 	}
+	if err := preflightProviders(next); err != nil {
+		return UpdateResult{}, err
+	}
 
 	nextPool, err := pool.New(next)
 	if err != nil {
@@ -132,4 +138,62 @@ func cloneConfig(cfg config.Config) config.Config {
 	out.Routes = append([]config.Route(nil), cfg.Routes...)
 	out.Providers = append([]config.Provider(nil), cfg.Providers...)
 	return out
+}
+
+func preflightProviders(cfg config.Config) error {
+	client := &http.Client{Timeout: cfg.HealthCheckTimeout}
+	for _, provider := range cfg.Providers {
+		if !provider.Enabled {
+			continue
+		}
+		if err := preflightProvider(context.Background(), client, provider); err != nil {
+			return fmt.Errorf("provider %q preflight failed: %w", provider.Name, err)
+		}
+	}
+	return nil
+}
+
+func preflightProvider(ctx context.Context, client *http.Client, provider config.Provider) error {
+	baseURL, err := url.Parse(provider.BaseURL)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildTargetURL(baseURL, "/v1/models").String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+provider.APIKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func buildTargetURL(base *url.URL, path string) *url.URL {
+	target := *base
+	target.Path = joinPaths(base.Path, path)
+	target.RawQuery = ""
+	target.Fragment = ""
+	return &target
+}
+
+func joinPaths(basePath, reqPath string) string {
+	for len(basePath) > 0 && basePath[len(basePath)-1] == '/' {
+		basePath = basePath[:len(basePath)-1]
+	}
+	if reqPath == "" || reqPath[0] != '/' {
+		reqPath = "/" + reqPath
+	}
+	if basePath == "" {
+		return reqPath
+	}
+	return basePath + reqPath
 }

@@ -15,6 +15,25 @@ import (
 	pruntime "pswitch/internal/runtime"
 )
 
+func newAdminUITestProviderServer(t *testing.T, expectedAuth string) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/models":
+			if expectedAuth != "" {
+				if got := r.Header.Get("Authorization"); got != expectedAuth {
+					t.Fatalf("authorization = %q, want %q", got, expectedAuth)
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"data":[]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+}
+
 func TestHandlerServesEmbeddedIndex(t *testing.T) {
 	manager := newTestManager(t)
 
@@ -113,6 +132,8 @@ func TestHandlerMetaExposesDashboardPrefix(t *testing.T) {
 
 func TestHandlerSavesConfigAndReturnsRestartNotice(t *testing.T) {
 	manager := newTestManager(t)
+	provider := newAdminUITestProviderServer(t, "Bearer k1")
+	defer provider.Close()
 
 	srv := httptest.NewServer(New(manager, "secret"))
 	defer srv.Close()
@@ -128,7 +149,7 @@ func TestHandlerSavesConfigAndReturnsRestartNotice(t *testing.T) {
 			{"prefix": "/codex", "type": "openai", "enabled": true},
 		},
 		"providers": []map[string]any{
-			{"name": "one", "base_url": "http://127.0.0.1:10001", "api_key": "k1", "enabled": true},
+			{"name": "one", "base_url": provider.URL, "api_key": "k1", "enabled": true},
 		},
 	}
 	body, _ := json.Marshal(payload)
@@ -171,6 +192,62 @@ func TestHandlerSavesConfigAndReturnsRestartNotice(t *testing.T) {
 	}
 	if len(got.Messages) == 0 {
 		t.Fatal("expected restart warning message")
+	}
+}
+
+func TestHandlerRejectsConfigWhenProviderPreflightFails(t *testing.T) {
+	manager := newTestManager(t)
+
+	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad gateway", http.StatusBadGateway)
+	}))
+	defer broken.Close()
+
+	srv := httptest.NewServer(New(manager, "secret"))
+	defer srv.Close()
+
+	payload := map[string]any{
+		"listen":                "127.0.0.1:8080",
+		"mode":                  "round_robin",
+		"failure_threshold":     1,
+		"cooldown":              "20s",
+		"health_check_interval": "15s",
+		"health_check_timeout":  "1s",
+		"routes": []map[string]any{
+			{"prefix": "/codex", "type": "openai", "enabled": true},
+		},
+		"providers": []map[string]any{
+			{"name": "broken", "base_url": broken.URL, "api_key": "k1", "enabled": true},
+		},
+	}
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/config", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set(headerAdminToken, "secret")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if got, want := resp.StatusCode, http.StatusBadRequest; got != want {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d, want %d body=%s", got, want, string(body))
+	}
+
+	var got struct {
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Error == "" {
+		t.Fatal("expected error message")
 	}
 }
 

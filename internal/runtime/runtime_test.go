@@ -1,7 +1,11 @@
 package runtime
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,11 +13,32 @@ import (
 	"pswitch/internal/metrics"
 )
 
+func newRuntimeTestProviderServer(t *testing.T, expectedAuth string) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.URL.Path, "/v1/models"; got != want {
+			t.Fatalf("path = %q, want %q", got, want)
+		}
+		if expectedAuth != "" {
+			if got := r.Header.Get("Authorization"); got != expectedAuth {
+				t.Fatalf("authorization = %q, want %q", got, expectedAuth)
+			}
+		}
+		fmt.Fprint(w, `{"data":[]}`)
+	}))
+}
+
 func TestManagerUpdateConfigSwapsPoolAndPersistsFile(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 	settingsPath := filepath.Join(dir, "settings.json")
 	metricsPath := filepath.Join(dir, "metrics.json")
+
+	initialProvider := newRuntimeTestProviderServer(t, "")
+	defer initialProvider.Close()
+	nextProvider := newRuntimeTestProviderServer(t, "Bearer k2")
+	defer nextProvider.Close()
 
 	initial := config.Config{
 		Listen:              "127.0.0.1:8080",
@@ -26,7 +51,7 @@ func TestManagerUpdateConfigSwapsPoolAndPersistsFile(t *testing.T) {
 			{Prefix: "/codex", Kind: "openai", Enabled: true},
 		},
 		Providers: []config.Provider{
-			{Name: "one", BaseURL: "http://127.0.0.1:10001", APIKey: "k1", Enabled: true},
+			{Name: "one", BaseURL: initialProvider.URL, APIKey: "k1", Enabled: true},
 		},
 	}
 	if err := config.Write(configPath, initial); err != nil {
@@ -41,7 +66,7 @@ func TestManagerUpdateConfigSwapsPoolAndPersistsFile(t *testing.T) {
 	next := initial
 	next.Mode = "sequential"
 	next.Providers = []config.Provider{
-		{Name: "two", BaseURL: "http://127.0.0.1:10002", APIKey: "k2", Enabled: true},
+		{Name: "two", BaseURL: nextProvider.URL, APIKey: "k2", Enabled: true},
 	}
 
 	result, err := manager.UpdateConfig(next)
@@ -136,6 +161,9 @@ func TestManagerUpdateConfigReportsRestartForListenChange(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 
+	provider := newRuntimeTestProviderServer(t, "")
+	defer provider.Close()
+
 	cfg := config.Config{
 		Listen:              "127.0.0.1:8080",
 		Mode:                "round_robin",
@@ -147,7 +175,7 @@ func TestManagerUpdateConfigReportsRestartForListenChange(t *testing.T) {
 			{Prefix: "/codex", Kind: "openai", Enabled: true},
 		},
 		Providers: []config.Provider{
-			{Name: "one", BaseURL: "http://127.0.0.1:10001", APIKey: "k1", Enabled: true},
+			{Name: "one", BaseURL: provider.URL, APIKey: "k1", Enabled: true},
 		},
 	}
 	if err := config.Write(path, cfg); err != nil {
@@ -171,6 +199,104 @@ func TestManagerUpdateConfigReportsRestartForListenChange(t *testing.T) {
 	}
 	if len(result.Messages) != 1 {
 		t.Fatalf("messages = %v, want 1 warning", result.Messages)
+	}
+}
+
+func TestManagerUpdateConfigRejectsProviderThatFailsPreflight(t *testing.T) {
+	dir := t.TempDir()
+	settingsPath := filepath.Join(dir, "settings.json")
+	metricsPath := filepath.Join(dir, "metrics.json")
+
+	initial := config.Config{
+		Listen:              "127.0.0.1:8080",
+		Mode:                "round_robin",
+		FailureThreshold:    1,
+		Cooldown:            20 * time.Second,
+		HealthCheckInterval: 15 * time.Second,
+		HealthCheckTimeout:  time.Second,
+		Routes: []config.Route{
+			{Prefix: "/codex", Kind: "openai", Enabled: true},
+		},
+		Providers: []config.Provider{
+			{Name: "one", BaseURL: "http://127.0.0.1:10001", APIKey: "k1", Enabled: true},
+		},
+	}
+
+	manager, err := New(settingsPath, metricsPath, initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.URL.Path, "/v1/models"; got != want {
+			t.Fatalf("path = %q, want %q", got, want)
+		}
+		http.Error(w, "bad gateway", http.StatusBadGateway)
+	}))
+	defer broken.Close()
+
+	next := initial
+	next.Providers = []config.Provider{
+		{Name: "broken", BaseURL: broken.URL, APIKey: "k2", Enabled: true},
+	}
+
+	_, err = manager.UpdateConfig(next)
+	if err == nil {
+		t.Fatal("expected preflight error")
+	}
+	if !strings.Contains(err.Error(), `provider "broken" preflight failed`) {
+		t.Fatalf("error = %q, want provider preflight failure", err)
+	}
+
+	current := manager.Config()
+	if len(current.Providers) != 1 || current.Providers[0].Name != "one" {
+		t.Fatalf("current providers = %#v, want original provider preserved", current.Providers)
+	}
+}
+
+func TestManagerUpdateConfigAcceptsProviderThatPassesPreflight(t *testing.T) {
+	dir := t.TempDir()
+	settingsPath := filepath.Join(dir, "settings.json")
+	metricsPath := filepath.Join(dir, "metrics.json")
+
+	initial := config.Config{
+		Listen:              "127.0.0.1:8080",
+		Mode:                "round_robin",
+		FailureThreshold:    1,
+		Cooldown:            20 * time.Second,
+		HealthCheckInterval: 15 * time.Second,
+		HealthCheckTimeout:  time.Second,
+		Routes: []config.Route{
+			{Prefix: "/codex", Kind: "openai", Enabled: true},
+		},
+		Providers: []config.Provider{
+			{Name: "one", BaseURL: "http://127.0.0.1:10001", APIKey: "k1", Enabled: true},
+		},
+	}
+
+	manager, err := New(settingsPath, metricsPath, initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	healthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.URL.Path, "/v1/models"; got != want {
+			t.Fatalf("path = %q, want %q", got, want)
+		}
+		if got, want := r.Header.Get("Authorization"), "Bearer k2"; got != want {
+			t.Fatalf("authorization = %q, want %q", got, want)
+		}
+		fmt.Fprint(w, `{"data":[]}`)
+	}))
+	defer healthy.Close()
+
+	next := initial
+	next.Providers = []config.Provider{
+		{Name: "healthy", BaseURL: healthy.URL, APIKey: "k2", Enabled: true},
+	}
+
+	if _, err := manager.UpdateConfig(next); err != nil {
+		t.Fatalf("update config error = %v, want nil", err)
 	}
 }
 
